@@ -17,9 +17,14 @@ export default function LoginScreen({ navigation }) {
       return;
     }
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) Alert.alert('Erro', error.message);
+    try {
+      const { error } = await signIn(email.trim(), password);
+      if (error) Alert.alert('Erro ao entrar', error.message);
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

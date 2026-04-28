@@ -21,13 +21,21 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
     setLoading(true);
-    const { error } = await signUp(email, password);
-    setLoading(false);
-    if (error) {
-      Alert.alert('Erro', error.message);
-    } else {
-      Alert.alert('Sucesso', 'Conta criada! Verifique seu email para confirmar o cadastro.');
-      navigation.navigate('Login');
+    try {
+      const { error } = await signUp(email.trim(), password);
+      if (error) {
+        Alert.alert('Erro ao cadastrar', error.message);
+      } else {
+        Alert.alert(
+          'Conta criada!',
+          'Cadastro realizado com sucesso. Faça login para continuar.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+        );
+      }
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
