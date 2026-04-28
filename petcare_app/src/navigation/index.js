@@ -7,6 +7,9 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import DashboardScreen from '../screens/app/DashboardScreen';
+import AddPetScreen from '../screens/app/AddPetScreen';
+import PetDetailsScreen from '../screens/app/PetDetailsScreen';
+import AddVaccineScreen from '../screens/app/AddVaccineScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -29,11 +32,29 @@ function AppTabs() {
         options={{
           title: 'Início',
           tabBarLabel: 'Início',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏠</Text>,
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
           headerTitle: 'PetCare+',
         }}
       />
     </Tab.Navigator>
+  );
+}
+
+function AppStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#fff' },
+        headerTintColor: '#0EA5E9',
+        headerTitleStyle: { fontWeight: '700', color: '#1E293B' },
+        contentStyle: { backgroundColor: '#F0F9FF' },
+      }}
+    >
+      <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="AddPet" component={AddPetScreen} options={{ title: 'Novo Pet' }} />
+      <Stack.Screen name="PetDetails" component={PetDetailsScreen} options={{ title: 'Detalhes do Pet' }} />
+      <Stack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ title: 'Nova Vacina' }} />
+    </Stack.Navigator>
   );
 }
 
@@ -59,7 +80,7 @@ export default function Navigation() {
 
   return (
     <NavigationContainer>
-      {user ? <AppTabs /> : <AuthStack />}
+      {user ? <AppStack /> : <AuthStack />}
     </NavigationContainer>
   );
 }
