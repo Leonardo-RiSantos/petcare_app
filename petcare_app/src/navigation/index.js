@@ -14,6 +14,7 @@ import ExpensesScreen from '../screens/app/ExpensesScreen';
 import AddExpenseScreen from '../screens/app/AddExpenseScreen';
 import WeightHistoryScreen from '../screens/app/WeightHistoryScreen';
 import AddWeightScreen from '../screens/app/AddWeightScreen';
+import FredScreen from '../screens/app/FredScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -53,6 +54,15 @@ function HomeTabs() {
           headerTitle: 'Gastos',
           tabBarLabel: 'Gastos',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💰</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="FredTab"
+        component={FredScreen}
+        options={{
+          headerTitle: 'Fred',
+          tabBarLabel: 'Fred',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🐱</Text>,
         }}
       />
     </Tab.Navigator>
