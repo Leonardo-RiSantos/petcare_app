@@ -10,6 +10,11 @@ const SPECIES_EMOJI = {
   Coelho: '🐰', Hamster: '🐹', Réptil: '🦎', Outro: '🐾',
 };
 
+const CATEGORY_LABEL = {
+  racao: 'Ração', veterinario: 'Veterinário', banho_tosa: 'Banho/Tosa',
+  remedio: 'Remédio', acessorios: 'Acessórios', outros: 'Outros',
+};
+
 function calcAge(birthDate) {
   if (!birthDate) return null;
   const birth = new Date(birthDate);
@@ -20,23 +25,43 @@ function calcAge(birthDate) {
   return `${years} ${years === 1 ? 'ano' : 'anos'}`;
 }
 
+function formatCurrency(value) {
+  return `R$ ${Number(value).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
+}
+
+function calcVaccineStatus(vaccines) {
+  const today = new Date();
+  const in30 = new Date();
+  in30.setDate(today.getDate() + 30);
+  let ok = 0, warning = 0, late = 0;
+  vaccines.forEach(v => {
+    if (!v.next_dose_date) { ok++; return; }
+    const next = new Date(v.next_dose_date);
+    if (next < today) late++;
+    else if (next <= in30) warning++;
+    else ok++;
+  });
+  return { ok, warning, late };
+}
+
 export default function PetDetailsScreen({ route, navigation }) {
   const { petId } = route.params;
   const [pet, setPet] = useState(null);
   const [vaccines, setVaccines] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    const [petRes, vacRes] = await Promise.all([
+    const [petRes, vacRes, expRes] = await Promise.all([
       supabase.from('pets').select('*').eq('id', petId).single(),
       supabase.from('vaccines').select('*').eq('pet_id', petId).order('applied_date', { ascending: false }),
+      supabase.from('expenses').select('*').eq('pet_id', petId).order('date', { ascending: false }),
     ]);
     if (petRes.data) setPet(petRes.data);
     if (vacRes.data) setVaccines(vacRes.data);
+    if (expRes.data) setExpenses(expRes.data);
     setLoading(false);
   };
 
@@ -52,21 +77,24 @@ export default function PetDetailsScreen({ route, navigation }) {
     ]);
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0EA5E9" />
-      </View>
-    );
-  }
-
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
   if (!pet) return null;
 
   const age = calcAge(pet.birth_date);
   const emoji = SPECIES_EMOJI[pet.species] || '🐾';
+  const vaccineStatus = calcVaccineStatus(vaccines);
+
+  const now = new Date();
+  const totalMes = expenses
+    .filter(e => { const d = new Date(e.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); })
+    .reduce((s, e) => s + Number(e.amount), 0);
+  const totalGeral = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const recentExpenses = expenses.slice(0, 3);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+
+      {/* Hero */}
       <View style={styles.heroCard}>
         <Text style={styles.heroEmoji}>{emoji}</Text>
         <Text style={styles.heroName}>{pet.name}</Text>
@@ -80,33 +108,116 @@ export default function PetDetailsScreen({ route, navigation }) {
         </View>
       </View>
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Vacinas</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('AddVaccine', { petId, petName: pet.name })}>
-            <Text style={styles.addLink}>+ Adicionar</Text>
+      {/* Atalhos rápidos */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.quickBtn}
+          onPress={() => navigation.navigate('AddVaccine', { petId, petName: pet.name, petSpecies: pet.species })}
+        >
+          <Text style={styles.quickBtnEmoji}>💉</Text>
+          <Text style={styles.quickBtnText}>Vacina</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickBtn}
+          onPress={() => navigation.navigate('Expenses', { screen: 'ExpensesTab', params: { petId } })}
+        >
+          <Text style={styles.quickBtnEmoji}>💰</Text>
+          <Text style={styles.quickBtnText}>Gastos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickBtn}
+          onPress={() => navigation.navigate('AddExpense', { petId, pets: [pet] })}
+        >
+          <Text style={styles.quickBtnEmoji}>➕</Text>
+          <Text style={styles.quickBtnText}>Add gasto</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Resumo financeiro */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>💰 Financeiro</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ExpensesTab', { petId })}
+          >
+            <Text style={styles.cardLink}>Ver tudo →</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.finRow}>
+          <View style={styles.finBox}>
+            <Text style={styles.finLabel}>Este mês</Text>
+            <Text style={styles.finValue}>{formatCurrency(totalMes)}</Text>
+          </View>
+          <View style={[styles.finBox, styles.finBoxAlt]}>
+            <Text style={[styles.finLabel, { color: '#BAE6FD' }]}>Total geral</Text>
+            <Text style={[styles.finValue, { color: '#fff' }]}>{formatCurrency(totalGeral)}</Text>
+          </View>
+        </View>
+        {recentExpenses.length > 0 && (
+          <View style={styles.recentExpenses}>
+            {recentExpenses.map(e => (
+              <View key={e.id} style={styles.expRow}>
+                <Text style={styles.expLabel}>{e.description || CATEGORY_LABEL[e.category]}</Text>
+                <Text style={styles.expAmount}>{formatCurrency(e.amount)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        {expenses.length === 0 && (
+          <Text style={styles.emptyText}>Nenhum gasto registrado</Text>
+        )}
+      </View>
+
+      {/* Vacinas */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>💉 Vacinas</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AddVaccine', { petId, petName: pet.name, petSpecies: pet.species })}
+          >
+            <Text style={styles.cardLink}>+ Adicionar</Text>
           </TouchableOpacity>
         </View>
 
-        {vaccines.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>Nenhuma vacina cadastrada</Text>
+        {/* Status badges */}
+        <View style={styles.vaccineStatusRow}>
+          <View style={[styles.vsBadge, styles.vsOk]}>
+            <Text style={styles.vsCount}>{vaccineStatus.ok}</Text>
+            <Text style={styles.vsLabel}>Em dia</Text>
           </View>
+          <View style={[styles.vsBadge, styles.vsWarn]}>
+            <Text style={styles.vsCount}>{vaccineStatus.warning}</Text>
+            <Text style={styles.vsLabel}>Vencendo</Text>
+          </View>
+          <View style={[styles.vsBadge, styles.vsLate]}>
+            <Text style={styles.vsCount}>{vaccineStatus.late}</Text>
+            <Text style={styles.vsLabel}>Atrasadas</Text>
+          </View>
+        </View>
+
+        {vaccines.length === 0 ? (
+          <Text style={styles.emptyText}>Nenhuma vacina cadastrada</Text>
         ) : (
-          vaccines.map(v => (
-            <View key={v.id} style={styles.vaccineItem}>
-              <View>
-                <Text style={styles.vaccineName}>{v.name}</Text>
-                <Text style={styles.vaccineDate}>Aplicada: {v.applied_date}</Text>
-                {v.next_dose_date && (
-                  <Text style={styles.vaccineNext}>Próxima: {v.next_dose_date}</Text>
-                )}
+          vaccines.map(v => {
+            const today = new Date();
+            const next = v.next_dose_date ? new Date(v.next_dose_date) : null;
+            const isLate = next && next < today;
+            const isWarn = next && !isLate && (next - today) / (1000 * 60 * 60 * 24) <= 30;
+            return (
+              <View key={v.id} style={styles.vaccineItem}>
+                <View style={styles.vaccineItemLeft}>
+                  <Text style={styles.vaccineName}>{v.name}</Text>
+                  <Text style={styles.vaccineDate}>Aplicada: {v.applied_date}</Text>
+                  {v.next_dose_date && (
+                    <Text style={[styles.vaccineNext, isLate && styles.vaccineNextLate, isWarn && styles.vaccineNextWarn]}>
+                      Próxima: {v.next_dose_date}
+                    </Text>
+                  )}
+                </View>
+                <Text style={{ fontSize: 20 }}>{isLate ? '❌' : isWarn ? '⚠️' : '✅'}</Text>
               </View>
-              <View style={styles.vaccineStatus}>
-                <Text style={styles.vaccineStatusDot}>✅</Text>
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </View>
 
@@ -121,11 +232,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   content: { padding: 20, paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
   heroCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
-    alignItems: 'center', marginBottom: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
   heroEmoji: { fontSize: 64, marginBottom: 8 },
   heroName: { fontSize: 26, fontWeight: '700', color: '#1E293B' },
@@ -133,23 +243,55 @@ const styles = StyleSheet.create({
   heroBadges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
   badge: { backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   badgeText: { fontSize: 13, color: '#3B82F6', fontWeight: '500' },
-  section: { marginBottom: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  addLink: { color: '#0EA5E9', fontWeight: '600', fontSize: 14 },
-  emptyCard: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 20, alignItems: 'center',
+
+  quickActions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  quickBtn: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0',
   },
-  emptyText: { color: '#94A3B8', fontSize: 14 },
+  quickBtnEmoji: { fontSize: 22, marginBottom: 4 },
+  quickBtnText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+
+  card: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 18, marginBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
+  cardLink: { fontSize: 13, color: '#0EA5E9', fontWeight: '600' },
+
+  finRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  finBox: {
+    flex: 1, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  finBoxAlt: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
+  finLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '500', marginBottom: 4 },
+  finValue: { fontSize: 18, fontWeight: '700', color: '#1E293B' },
+  recentExpenses: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12 },
+  expRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  expLabel: { fontSize: 13, color: '#64748B' },
+  expAmount: { fontSize: 13, fontWeight: '700', color: '#1E293B' },
+  emptyText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 },
+
+  vaccineStatusRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  vsBadge: { flex: 1, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1 },
+  vsOk: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+  vsWarn: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  vsLate: { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' },
+  vsCount: { fontSize: 18, fontWeight: '700', color: '#1E293B' },
+  vsLabel: { fontSize: 10, color: '#64748B', marginTop: 2 },
+
   vaccineItem: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 8,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9',
   },
-  vaccineName: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
-  vaccineDate: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  vaccineNext: { fontSize: 13, color: '#F59E0B', marginTop: 2 },
-  vaccineStatus: { alignItems: 'center' },
-  vaccineStatusDot: { fontSize: 20 },
+  vaccineItemLeft: { flex: 1 },
+  vaccineName: { fontSize: 14, fontWeight: '600', color: '#1E293B' },
+  vaccineDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  vaccineNext: { fontSize: 12, color: '#10B981', marginTop: 2 },
+  vaccineNextWarn: { color: '#F59E0B' },
+  vaccineNextLate: { color: '#EF4444' },
+
   deleteButton: {
     borderWidth: 1, borderColor: '#FECDD3', borderRadius: 12,
     paddingVertical: 14, alignItems: 'center', marginTop: 8,

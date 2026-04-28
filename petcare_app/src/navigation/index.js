@@ -10,30 +10,47 @@ import DashboardScreen from '../screens/app/DashboardScreen';
 import AddPetScreen from '../screens/app/AddPetScreen';
 import PetDetailsScreen from '../screens/app/PetDetailsScreen';
 import AddVaccineScreen from '../screens/app/AddVaccineScreen';
+import ExpensesScreen from '../screens/app/ExpensesScreen';
+import AddExpenseScreen from '../screens/app/AddExpenseScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function AppTabs() {
+const NAV_OPTS = {
+  headerStyle: { backgroundColor: '#fff' },
+  headerTintColor: '#0EA5E9',
+  headerTitleStyle: { fontWeight: '700', color: '#1E293B' },
+  contentStyle: { backgroundColor: '#F0F9FF' },
+};
+
+function HomeTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: '#0EA5E9',
         tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0' },
+        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4 },
         headerStyle: { backgroundColor: '#fff' },
         headerTintColor: '#1E293B',
         headerTitleStyle: { fontWeight: '700' },
       }}
     >
       <Tab.Screen
-        name="Dashboard"
+        name="HomeTab"
         component={DashboardScreen}
         options={{
-          title: 'Início',
+          headerTitle: 'PetCare+',
           tabBarLabel: 'Início',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
-          headerTitle: 'PetCare+',
+        }}
+      />
+      <Tab.Screen
+        name="ExpensesTab"
+        component={ExpensesScreen}
+        options={{
+          headerTitle: 'Gastos',
+          tabBarLabel: 'Gastos',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💰</Text>,
         }}
       />
     </Tab.Navigator>
@@ -42,18 +59,12 @@ function AppTabs() {
 
 function AppStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: '#fff' },
-        headerTintColor: '#0EA5E9',
-        headerTitleStyle: { fontWeight: '700', color: '#1E293B' },
-        contentStyle: { backgroundColor: '#F0F9FF' },
-      }}
-    >
-      <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
+    <Stack.Navigator screenOptions={NAV_OPTS}>
+      <Stack.Screen name="Main" component={HomeTabs} options={{ headerShown: false }} />
       <Stack.Screen name="AddPet" component={AddPetScreen} options={{ title: 'Novo Pet' }} />
       <Stack.Screen name="PetDetails" component={PetDetailsScreen} options={{ title: 'Detalhes do Pet' }} />
       <Stack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ title: 'Nova Vacina' }} />
+      <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Registrar Gasto' }} />
     </Stack.Navigator>
   );
 }
