@@ -49,19 +49,22 @@ export default function PetDetailsScreen({ route, navigation }) {
   const [pet, setPet] = useState(null);
   const [vaccines, setVaccines] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [weightRecords, setWeightRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    const [petRes, vacRes, expRes] = await Promise.all([
+    const [petRes, vacRes, expRes, weightRes] = await Promise.all([
       supabase.from('pets').select('*').eq('id', petId).single(),
       supabase.from('vaccines').select('*').eq('pet_id', petId).order('applied_date', { ascending: false }),
       supabase.from('expenses').select('*').eq('pet_id', petId).order('date', { ascending: false }),
+      supabase.from('weight_records').select('*').eq('pet_id', petId).order('date', { ascending: false }),
     ]);
     if (petRes.data) setPet(petRes.data);
     if (vacRes.data) setVaccines(vacRes.data);
     if (expRes.data) setExpenses(expRes.data);
+    if (weightRes.data) setWeightRecords(weightRes.data);
     setLoading(false);
   };
 
@@ -119,19 +122,60 @@ export default function PetDetailsScreen({ route, navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.quickBtn}
-          onPress={() => navigation.navigate('Expenses', { screen: 'ExpensesTab', params: { petId } })}
+          onPress={() => navigation.navigate('WeightHistory', { petId, petName: pet.name })}
         >
-          <Text style={styles.quickBtnEmoji}>💰</Text>
-          <Text style={styles.quickBtnText}>Gastos</Text>
+          <Text style={styles.quickBtnEmoji}>⚖️</Text>
+          <Text style={styles.quickBtnText}>Peso</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.quickBtn}
           onPress={() => navigation.navigate('AddExpense', { petId, pets: [pet] })}
         >
-          <Text style={styles.quickBtnEmoji}>➕</Text>
+          <Text style={styles.quickBtnEmoji}>💰</Text>
           <Text style={styles.quickBtnText}>Add gasto</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Card de peso */}
+      {(() => {
+        const sorted = [...weightRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const latest = sorted[sorted.length - 1];
+        const prev = sorted[sorted.length - 2];
+        const diff = latest && prev ? (Number(latest.weight_kg) - Number(prev.weight_kg)).toFixed(2) : null;
+        return (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>⚖️ Peso</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('WeightHistory', { petId, petName: pet.name })}>
+                <Text style={styles.cardLink}>Ver histórico →</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.weightRow}>
+              <View>
+                <Text style={styles.weightCurrent}>
+                  {latest ? `${Number(latest.weight_kg).toFixed(2)} kg` : pet.weight_kg ? `${pet.weight_kg} kg` : '—'}
+                </Text>
+                {latest && <Text style={styles.weightDate}>Registrado em {latest.date}</Text>}
+              </View>
+              <View style={styles.weightRight}>
+                {diff !== null && (
+                  <View style={[styles.diffBadge, Number(diff) > 0 ? styles.diffBadgeUp : Number(diff) < 0 ? styles.diffBadgeDown : styles.diffBadgeStable]}>
+                    <Text style={styles.diffBadgeText}>
+                      {Number(diff) > 0 ? `+${diff}` : diff} kg
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.addWeightBtn}
+                  onPress={() => navigation.navigate('AddWeight', { petId, petName: pet.name, currentWeight: latest?.weight_kg ?? pet.weight_kg })}
+                >
+                  <Text style={styles.addWeightBtnText}>+ Registrar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        );
+      })()}
 
       {/* Resumo financeiro */}
       <View style={styles.card}>
@@ -291,6 +335,18 @@ const styles = StyleSheet.create({
   vaccineNext: { fontSize: 12, color: '#10B981', marginTop: 2 },
   vaccineNextWarn: { color: '#F59E0B' },
   vaccineNextLate: { color: '#EF4444' },
+
+  weightRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  weightCurrent: { fontSize: 28, fontWeight: '800', color: '#1E293B' },
+  weightDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  weightRight: { alignItems: 'flex-end', gap: 8 },
+  diffBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  diffBadgeUp: { backgroundColor: '#FEF9C3' },
+  diffBadgeDown: { backgroundColor: '#DCFCE7' },
+  diffBadgeStable: { backgroundColor: '#F1F5F9' },
+  diffBadgeText: { fontSize: 13, fontWeight: '700', color: '#374151' },
+  addWeightBtn: { backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  addWeightBtnText: { color: '#0EA5E9', fontWeight: '700', fontSize: 13 },
 
   deleteButton: {
     borderWidth: 1, borderColor: '#FECDD3', borderRadius: 12,

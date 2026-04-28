@@ -12,6 +12,8 @@ import PetDetailsScreen from '../screens/app/PetDetailsScreen';
 import AddVaccineScreen from '../screens/app/AddVaccineScreen';
 import ExpensesScreen from '../screens/app/ExpensesScreen';
 import AddExpenseScreen from '../screens/app/AddExpenseScreen';
+import WeightHistoryScreen from '../screens/app/WeightHistoryScreen';
+import AddWeightScreen from '../screens/app/AddWeightScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -65,6 +67,8 @@ function AppStack() {
       <Stack.Screen name="PetDetails" component={PetDetailsScreen} options={{ title: 'Detalhes do Pet' }} />
       <Stack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ title: 'Nova Vacina' }} />
       <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Registrar Gasto' }} />
+      <Stack.Screen name="WeightHistory" component={WeightHistoryScreen} options={{ title: 'Histórico de Peso' }} />
+      <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Registrar Peso' }} />
     </Stack.Navigator>
   );
 }
