@@ -6,6 +6,8 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
+const FRED_URL = 'https://wqabzvataiellbttoojn.supabase.co/functions/v1/fred-chat';
+
 const QUICK_QUESTIONS = [
   'Como estão as vacinas dos meus pets?',
   'Tem algum alerta importante hoje?',
@@ -80,17 +82,19 @@ export default function FredScreen() {
         content: m.content,
       }));
 
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/fred-chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ message: userText, history }),
-        }
-      );
+      const res = await fetch(FRED_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ message: userText, history }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Servidor retornou ${res.status}: ${errText}`);
+      }
 
       const data = await res.json();
       const fredMsg = {
@@ -100,10 +104,10 @@ export default function FredScreen() {
       };
       setMessages(prev => [...prev, fredMsg]);
       scrollToBottom();
-    } catch {
+    } catch (e) {
       setMessages(prev => [
         ...prev,
-        { id: Date.now().toString(), role: 'assistant', content: 'Ops, tive um problema de conexão. Pode tentar novamente? 🙏' },
+        { id: Date.now().toString(), role: 'assistant', content: `Ops, algo deu errado: ${e?.message || 'erro desconhecido'}` },
       ]);
     } finally {
       setLoading(false);
