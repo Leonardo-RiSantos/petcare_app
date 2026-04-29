@@ -161,6 +161,13 @@ export default function PetDetailsScreen({ route, navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.quickBtn}
+          onPress={() => navigation.navigate('PetQR', { petId })}
+        >
+          <Text style={styles.quickBtnEmoji}>📱</Text>
+          <Text style={styles.quickBtnText}>RG Digital</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickBtn}
           onPress={handleGenerateVetCode}
         >
           <Text style={styles.quickBtnEmoji}>🔗</Text>

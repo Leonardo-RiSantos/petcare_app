@@ -21,6 +21,7 @@ import FredScreen from '../screens/app/FredScreen';
 import ProfileScreen from '../screens/app/ProfileScreen';
 import MedicalHistoryScreen from '../screens/app/MedicalHistoryScreen';
 import AddMedicalRecordScreen from '../screens/app/AddMedicalRecordScreen';
+import PetQRScreen from '../screens/app/PetQRScreen';
 
 // Vet
 import VetDashboardScreen from '../screens/vet/VetDashboardScreen';
@@ -71,6 +72,7 @@ function TutorStack() {
       <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Registrar Peso' }} />
       <Stack.Screen name="MedicalHistory" component={MedicalHistoryScreen} options={{ title: 'Histórico Médico' }} />
       <Stack.Screen name="AddMedicalRecord" component={AddMedicalRecordScreen} options={{ title: 'Novo Registro' }} />
+      <Stack.Screen name="PetQR" component={PetQRScreen} options={{ title: 'RG Digital' }} />
     </Stack.Navigator>
   );
 }
