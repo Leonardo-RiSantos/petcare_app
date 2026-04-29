@@ -68,6 +68,24 @@ export default function PetDetailsScreen({ route, navigation }) {
     setLoading(false);
   };
 
+  const handleGenerateVetCode = async () => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { error } = await supabase.from('vet_invite_codes').insert({
+      pet_id: petId,
+      tutor_id: pet.user_id,
+      code,
+    });
+    if (error) {
+      Alert.alert('Erro', error.message);
+    } else {
+      Alert.alert(
+        '🔗 Código de convite gerado',
+        `Compartilhe este código com o veterinário:\n\n${code}\n\nVálido por 7 dias.`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   const handleDelete = () => {
     Alert.alert('Remover pet', `Deseja remover ${pet?.name}? Esta ação não pode ser desfeita.`, [
       { text: 'Cancelar', style: 'cancel' },
@@ -140,6 +158,13 @@ export default function PetDetailsScreen({ route, navigation }) {
         >
           <Text style={styles.quickBtnEmoji}>🏥</Text>
           <Text style={styles.quickBtnText}>Histórico</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickBtn}
+          onPress={handleGenerateVetCode}
+        >
+          <Text style={styles.quickBtnEmoji}>🔗</Text>
+          <Text style={styles.quickBtnText}>Inv. vet</Text>
         </TouchableOpacity>
       </View>
 

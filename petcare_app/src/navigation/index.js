@@ -4,8 +4,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
+// Auth
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+
+// Tutor
 import DashboardScreen from '../screens/app/DashboardScreen';
 import AddPetScreen from '../screens/app/AddPetScreen';
 import PetDetailsScreen from '../screens/app/PetDetailsScreen';
@@ -19,6 +22,10 @@ import ProfileScreen from '../screens/app/ProfileScreen';
 import MedicalHistoryScreen from '../screens/app/MedicalHistoryScreen';
 import AddMedicalRecordScreen from '../screens/app/AddMedicalRecordScreen';
 
+// Vet
+import VetDashboardScreen from '../screens/vet/VetDashboardScreen';
+import VetPatientScreen from '../screens/vet/VetPatientScreen';
+
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -29,62 +36,33 @@ const NAV_OPTS = {
   contentStyle: { backgroundColor: '#F0F9FF' },
 };
 
-function HomeTabs() {
+const VET_NAV_OPTS = {
+  ...NAV_OPTS,
+  headerTintColor: '#10B981',
+  contentStyle: { backgroundColor: '#F0FDF4' },
+};
+
+// ─── TUTOR ───────────────────────────────────────────────
+function TutorTabs() {
   return (
-    <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: '#0EA5E9',
-        tabBarInactiveTintColor: '#94A3B8',
-        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4 },
-        headerStyle: { backgroundColor: '#fff' },
-        headerTintColor: '#1E293B',
-        headerTitleStyle: { fontWeight: '700' },
-      }}
-    >
-      <Tab.Screen
-        name="HomeTab"
-        component={DashboardScreen}
-        options={{
-          headerTitle: 'PetCare+',
-          tabBarLabel: 'Início',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="ExpensesTab"
-        component={ExpensesScreen}
-        options={{
-          headerTitle: 'Gastos',
-          tabBarLabel: 'Gastos',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💰</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="FredTab"
-        component={FredScreen}
-        options={{
-          headerTitle: 'Fred',
-          tabBarLabel: 'Fred',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🐱</Text>,
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          headerTitle: 'Perfil',
-          tabBarLabel: 'Perfil',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>👤</Text>,
-        }}
-      />
+    <Tab.Navigator screenOptions={{
+      tabBarActiveTintColor: '#0EA5E9', tabBarInactiveTintColor: '#94A3B8',
+      tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4 },
+      headerStyle: { backgroundColor: '#fff' },
+      headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
+    }}>
+      <Tab.Screen name="HomeTab" component={DashboardScreen} options={{ headerTitle: 'PetCare+', tabBarLabel: 'Início', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🏠</Text> }} />
+      <Tab.Screen name="ExpensesTab" component={ExpensesScreen} options={{ headerTitle: 'Gastos', tabBarLabel: 'Gastos', tabBarIcon: () => <Text style={{ fontSize: 20 }}>💰</Text> }} />
+      <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐱</Text> }} />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text> }} />
     </Tab.Navigator>
   );
 }
 
-function AppStack() {
+function TutorStack() {
   return (
     <Stack.Navigator screenOptions={NAV_OPTS}>
-      <Stack.Screen name="Main" component={HomeTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="Main" component={TutorTabs} options={{ headerShown: false }} />
       <Stack.Screen name="AddPet" component={AddPetScreen} options={{ title: 'Novo Pet' }} />
       <Stack.Screen name="PetDetails" component={PetDetailsScreen} options={{ title: 'Detalhes do Pet' }} />
       <Stack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ title: 'Nova Vacina' }} />
@@ -97,6 +75,33 @@ function AppStack() {
   );
 }
 
+// ─── VETERINÁRIO ─────────────────────────────────────────
+function VetTabs() {
+  return (
+    <Tab.Navigator screenOptions={{
+      tabBarActiveTintColor: '#10B981', tabBarInactiveTintColor: '#94A3B8',
+      tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4 },
+      headerStyle: { backgroundColor: '#fff' },
+      headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
+    }}>
+      <Tab.Screen name="VetHomeTab" component={VetDashboardScreen} options={{ headerTitle: 'Meus Pacientes', tabBarLabel: 'Pacientes', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐾</Text> }} />
+      <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐱</Text> }} />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text> }} />
+    </Tab.Navigator>
+  );
+}
+
+function VetStack() {
+  return (
+    <Stack.Navigator screenOptions={VET_NAV_OPTS}>
+      <Stack.Screen name="VetMain" component={VetTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="VetPatient" component={VetPatientScreen} options={{ title: 'Paciente' }} />
+      <Stack.Screen name="AddMedicalRecord" component={AddMedicalRecordScreen} options={{ title: 'Novo Registro' }} />
+    </Stack.Navigator>
+  );
+}
+
+// ─── AUTH ────────────────────────────────────────────────
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -106,8 +111,9 @@ function AuthStack() {
   );
 }
 
+// ─── ROOT ────────────────────────────────────────────────
 export default function Navigation() {
-  const { user, loading } = useAuth();
+  const { user, isVet, loading } = useAuth();
 
   if (loading) {
     return (
@@ -119,7 +125,7 @@ export default function Navigation() {
 
   return (
     <NavigationContainer>
-      {user ? <AppStack /> : <AuthStack />}
+      {!user ? <AuthStack /> : isVet ? <VetStack /> : <TutorStack />}
     </NavigationContainer>
   );
 }
