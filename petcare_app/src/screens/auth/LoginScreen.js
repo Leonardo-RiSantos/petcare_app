@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ScrollView, Image, Alert,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 
@@ -10,21 +11,25 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [erro, setErro] = useState('');
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Atenção', 'Preencha email e senha.');
-      return;
-    }
+    setErro('');
+    if (!email || !password) { setErro('Preencha email e senha.'); return; }
     setLoading(true);
     try {
       const { error } = await signIn(email.trim(), password);
-      if (error) Alert.alert('Erro ao entrar', error.message);
+      if (error) setErro(error.message);
     } catch (e) {
-      Alert.alert('Erro', 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
+      setErro('Erro de conexão. Verifique sua internet.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSocialLogin = (provider) => {
+    Alert.alert(`${provider}`, 'Login social disponível em breve! Use email e senha por enquanto.');
   };
 
   return (
@@ -32,60 +37,150 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.inner}>
-        <Text style={styles.logo}>🐾</Text>
-        <Text style={styles.title}>PetCare+</Text>
-        <Text style={styles.subtitle}>Bem-vindo de volta</Text>
+      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#9CA3AF"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#9CA3AF"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        {/* Logo */}
+        <View style={styles.logoWrapper}>
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+        </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Entrar</Text>
-          )}
+        {/* Título */}
+        <Text style={styles.title}>Bem-vindo de volta!</Text>
+        <Text style={styles.subtitle}>Entre para gerenciar os cuidados do seu pet</Text>
+
+        {/* Botão Google */}
+        <TouchableOpacity style={styles.socialBtn} onPress={() => handleSocialLogin('Google')}>
+          <Text style={styles.socialLogo}>G</Text>
+          <Text style={styles.socialText}>Continuar com o Google</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.link}>Não tem conta? <Text style={styles.linkBold}>Cadastre-se</Text></Text>
+        {/* Botão Apple */}
+        <TouchableOpacity style={styles.socialBtn} onPress={() => handleSocialLogin('Apple')}>
+          <Text style={styles.socialLogoApple}></Text>
+          <Text style={styles.socialText}>Continuar com a Apple</Text>
         </TouchableOpacity>
-      </View>
+
+        {/* Divisor OU */}
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>OU</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Email */}
+        <Text style={styles.label}>Email</Text>
+        <View style={styles.inputWrapper}>
+          <Text style={styles.inputIcon}>✉</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="voce@exemplo.com"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+        </View>
+
+        {/* Senha */}
+        <Text style={styles.label}>Senha</Text>
+        <View style={styles.inputWrapper}>
+          <Text style={styles.inputIcon}>🔒</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="••••••••"
+            placeholderTextColor="#9CA3AF"
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn}>
+            <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Erro */}
+        {erro ? <Text style={styles.errorText}>{erro}</Text> : null}
+
+        {/* Botão entrar */}
+        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.loginBtnText}>Entrar</Text>}
+        </TouchableOpacity>
+
+        {/* Footer links */}
+        <View style={styles.footerRow}>
+          <TouchableOpacity>
+            <Text style={styles.footerLink}>Esqueceu a senha?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.footerLink}>
+              Não tem conta? <Text style={styles.footerLinkBold}>Cadastre-se</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F9FF' },
-  inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  logo: { fontSize: 56, textAlign: 'center', marginBottom: 8 },
-  title: { fontSize: 32, fontWeight: '700', textAlign: 'center', color: '#0EA5E9', marginBottom: 4 },
-  subtitle: { fontSize: 16, textAlign: 'center', color: '#64748B', marginBottom: 32 },
-  input: {
-    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', color: '#1E293B',
+  container: { flex: 1, backgroundColor: '#EBF8FF' },
+  inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+
+  logoWrapper: { alignItems: 'center', marginBottom: 24 },
+  logoImage: { width: 110, height: 110, borderRadius: 55 },
+
+  title: { fontSize: 28, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 6 },
+  subtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 28 },
+
+  // Social buttons
+  socialBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#fff', borderRadius: 12, paddingVertical: 14,
+    borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12, gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
-  button: {
-    backgroundColor: '#0EA5E9', borderRadius: 12, paddingVertical: 16,
-    alignItems: 'center', marginTop: 8, marginBottom: 16,
+  socialLogo: { fontSize: 18, fontWeight: '800', color: '#4285F4', width: 24, textAlign: 'center' },
+  socialLogoApple: { fontSize: 20, color: '#000', width: 24, textAlign: 'center' },
+  socialText: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
+
+  // Divisor
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 10 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
+  dividerText: { fontSize: 12, fontWeight: '600', color: '#94A3B8' },
+
+  // Campos
+  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  inputWrapper: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0',
+    paddingHorizontal: 14, marginBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 2, elevation: 1,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  link: { textAlign: 'center', color: '#64748B', fontSize: 14 },
-  linkBold: { color: '#0EA5E9', fontWeight: '600' },
+  inputIcon: { fontSize: 16, marginRight: 10, color: '#94A3B8' },
+  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#1E293B' },
+  eyeBtn: { padding: 4 },
+  eyeIcon: { fontSize: 18 },
+
+  errorText: { color: '#EF4444', fontSize: 13, textAlign: 'center', marginBottom: 12, marginTop: -8 },
+
+  // Botão login
+  loginBtn: {
+    backgroundColor: '#0D9488', borderRadius: 12, paddingVertical: 16,
+    alignItems: 'center', marginBottom: 20,
+    shadowColor: '#0D9488', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  },
+  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  // Footer
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  footerLink: { fontSize: 13, color: '#64748B' },
+  footerLinkBold: { color: '#0D9488', fontWeight: '700' },
 });
