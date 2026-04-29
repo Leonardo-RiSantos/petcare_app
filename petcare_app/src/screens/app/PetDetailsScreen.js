@@ -134,6 +134,13 @@ export default function PetDetailsScreen({ route, navigation }) {
           <Text style={styles.quickBtnEmoji}>💰</Text>
           <Text style={styles.quickBtnText}>Add gasto</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickBtn}
+          onPress={() => navigation.navigate('MedicalHistory', { petId, petName: pet.name })}
+        >
+          <Text style={styles.quickBtnEmoji}>🏥</Text>
+          <Text style={styles.quickBtnText}>Histórico</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Card de peso */}

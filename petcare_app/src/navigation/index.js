@@ -16,6 +16,8 @@ import WeightHistoryScreen from '../screens/app/WeightHistoryScreen';
 import AddWeightScreen from '../screens/app/AddWeightScreen';
 import FredScreen from '../screens/app/FredScreen';
 import ProfileScreen from '../screens/app/ProfileScreen';
+import MedicalHistoryScreen from '../screens/app/MedicalHistoryScreen';
+import AddMedicalRecordScreen from '../screens/app/AddMedicalRecordScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -89,6 +91,8 @@ function AppStack() {
       <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Registrar Gasto' }} />
       <Stack.Screen name="WeightHistory" component={WeightHistoryScreen} options={{ title: 'Histórico de Peso' }} />
       <Stack.Screen name="AddWeight" component={AddWeightScreen} options={{ title: 'Registrar Peso' }} />
+      <Stack.Screen name="MedicalHistory" component={MedicalHistoryScreen} options={{ title: 'Histórico Médico' }} />
+      <Stack.Screen name="AddMedicalRecord" component={AddMedicalRecordScreen} options={{ title: 'Novo Registro' }} />
     </Stack.Navigator>
   );
 }
