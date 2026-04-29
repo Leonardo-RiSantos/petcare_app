@@ -1,14 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Anthropic from 'npm:@anthropic-ai/sdk'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const anthropic = new Anthropic({
-  apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
-})
 
 function calcAge(birthDate: string | null): string {
   if (!birthDate) return ''
@@ -31,7 +26,7 @@ function calcVaccineStatus(nextDate: string | null): string {
   return `próximo reforço em ${days} dias`
 }
 
-async function buildContext(supabase: ReturnType<typeof createClient>, userId: string): Promise<string> {
+async function buildContext(supabase: any, userId: string): Promise<string> {
   const [petsRes, vaccinesRes, weightRes, expensesRes] = await Promise.all([
     supabase.from('pets').select('*').eq('user_id', userId).order('created_at'),
     supabase.from('vaccines').select('*').eq('user_id', userId).order('applied_date', { ascending: false }),
@@ -44,15 +39,11 @@ async function buildContext(supabase: ReturnType<typeof createClient>, userId: s
   const weights = weightRes.data ?? []
   const expenses = expensesRes.data ?? []
 
-  if (pets.length === 0) {
-    return 'O usuário ainda não cadastrou nenhum pet no app.'
-  }
+  if (pets.length === 0) return 'O usuário ainda não cadastrou nenhum pet no app.'
 
   const now = new Date()
-  const currentMonth = now.getMonth()
-  const currentYear = now.getFullYear()
-
   let ctx = `## Pets do usuário:\n`
+
   for (const pet of pets) {
     const age = calcAge(pet.birth_date)
     const petVaccines = vaccines.filter((v: any) => v.pet_id === pet.id)
@@ -60,46 +51,34 @@ async function buildContext(supabase: ReturnType<typeof createClient>, userId: s
 
     ctx += `\n### ${pet.name} (${pet.species}${pet.breed ? ` - ${pet.breed}` : ''})`
     if (age) ctx += `, ${age}`
-    if (pet.sex) ctx += `, ${pet.sex}`
     if (pet.neutered) ctx += ', castrado(a)'
     ctx += '\n'
-
     if (pet.weight_kg) ctx += `- Peso atual: ${pet.weight_kg} kg\n`
 
     if (petWeights.length >= 2) {
-      const latest = Number(petWeights[0].weight_kg)
-      const prev = Number(petWeights[1].weight_kg)
-      const diff = (latest - prev).toFixed(2)
+      const diff = (Number(petWeights[0].weight_kg) - Number(petWeights[1].weight_kg)).toFixed(2)
       const trend = Number(diff) > 0.05 ? `↑ ganhou ${diff}kg` : Number(diff) < -0.05 ? `↓ perdeu ${Math.abs(Number(diff))}kg` : '→ estável'
-      ctx += `- Tendência de peso: ${trend} (últimas medições: ${petWeights.slice(0, 3).map((w: any) => `${w.weight_kg}kg em ${w.date}`).join(', ')})\n`
+      ctx += `- Tendência: ${trend}\n`
     }
 
     if (petVaccines.length > 0) {
       ctx += `- Vacinas:\n`
       for (const v of petVaccines.slice(0, 5)) {
-        ctx += `  • ${v.name}: aplicada ${v.applied_date}, ${calcVaccineStatus(v.next_dose_date)}\n`
+        ctx += `  • ${v.name}: ${calcVaccineStatus(v.next_dose_date)}\n`
       }
     } else {
       ctx += `- Vacinas: nenhuma cadastrada\n`
     }
   }
 
-  // Gastos do mês atual
   const monthExpenses = expenses.filter((e: any) => {
     const d = new Date(e.date)
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   })
   const totalMonth = monthExpenses.reduce((s: number, e: any) => s + Number(e.amount), 0)
 
   if (expenses.length > 0) {
-    ctx += `\n## Gastos recentes:\n`
-    ctx += `- Total este mês: R$ ${totalMonth.toFixed(2)}\n`
-    const byCategory: Record<string, number> = {}
-    expenses.forEach((e: any) => { byCategory[e.category] = (byCategory[e.category] || 0) + Number(e.amount) })
-    const cats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 4)
-    for (const [cat, total] of cats) {
-      ctx += `- ${cat}: R$ ${total.toFixed(2)}\n`
-    }
+    ctx += `\n## Gastos este mês: R$ ${totalMonth.toFixed(2)}\n`
   }
 
   return ctx
@@ -126,48 +105,54 @@ Deno.serve(async (req) => {
 
     const context = await buildContext(supabase, user.id)
 
-    const systemPrompt = `Você é o Fred 🐱, assistente virtual inteligente do PetCare+. Você é carinhoso, direto e especialista em cuidados com pets.
-
-Seu objetivo é ajudar tutores a cuidarem melhor de seus animais usando os dados reais do app — vacinas, peso, gastos e rotinas.
+    const systemPrompt = `Você é o Fred 🐱, assistente virtual do PetCare+. Você é carinhoso, direto e especialista em cuidados com pets.
 
 ${context}
 
-## Diretrizes:
+Diretrizes:
 - Use o nome real dos pets nas respostas
 - Alerte sobre vacinas atrasadas ou vencendo em breve
-- Comente sobre tendências de peso (ganho/perda relevante)
-- Parabenize o tutor por bons cuidados
-- Seja objetivo: respostas curtas e práticas, sem rodeios
+- Seja objetivo: respostas curtas e práticas
 - Em dúvidas médicas sérias, recomende consultar um veterinário
 - Fale em português do Brasil`
 
-    // Limita histórico a últimas 10 trocas para economizar tokens
-    const recentHistory = history.slice(-10)
+    const messages = [
+      ...history.slice(-10),
+      { role: 'user', content: message },
+    ]
 
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-4-7',
-      max_tokens: 512,
-      system: [
-        {
-          type: 'text',
-          text: systemPrompt,
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [
-        ...recentHistory,
-        { role: 'user', content: message },
-      ],
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!anthropicKey) throw new Error('ANTHROPIC_API_KEY não configurada')
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 512,
+        system: systemPrompt,
+        messages,
+      }),
     })
 
-    const reply = response.content.find((b: any) => b.type === 'text')?.text ?? 'Não consegui processar sua mensagem.'
+    if (!response.ok) {
+      const errBody = await response.text()
+      throw new Error(`Anthropic API error ${response.status}: ${errBody}`)
+    }
+
+    const data = await response.json()
+    const reply = data.content?.[0]?.text ?? 'Não consegui processar sua mensagem.'
 
     return new Response(JSON.stringify({ reply }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('Fred error:', err)
-    return new Response(JSON.stringify({ error: 'Erro interno' }), {
+    console.error('Fred error:', err?.message ?? err)
+    return new Response(JSON.stringify({ error: 'Erro interno', detail: err?.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
