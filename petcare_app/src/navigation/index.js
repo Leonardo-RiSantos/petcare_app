@@ -15,6 +15,7 @@ import AddExpenseScreen from '../screens/app/AddExpenseScreen';
 import WeightHistoryScreen from '../screens/app/WeightHistoryScreen';
 import AddWeightScreen from '../screens/app/AddWeightScreen';
 import FredScreen from '../screens/app/FredScreen';
+import ProfileScreen from '../screens/app/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,6 +64,15 @@ function HomeTabs() {
           headerTitle: 'Fred',
           tabBarLabel: 'Fred',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🐱</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileScreen}
+        options={{
+          headerTitle: 'Perfil',
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>👤</Text>,
         }}
       />
     </Tab.Navigator>
