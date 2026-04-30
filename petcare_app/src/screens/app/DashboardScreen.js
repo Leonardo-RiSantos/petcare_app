@@ -1,16 +1,20 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
-const SPECIES_EMOJI = {
-  Cachorro: '🐶', Gato: '🐱', Ave: '🐦',
-  Coelho: '🐰', Hamster: '🐹', Réptil: '🦎', Outro: '🐾',
+const SPECIES_IMAGES = {
+  Cachorro: require('../../../assets/pet_cachorro.png'),
+  Gato:     require('../../../assets/pet_gato.png'),
+  Ave:      require('../../../assets/pet_ave.png'),
+  Coelho:   require('../../../assets/pet_coelho.png'),
+  Hamster:  require('../../../assets/pet_hamster.png'),
+  Réptil:   require('../../../assets/pet_reptil.png'),
 };
 
 function calcVaccineStatus(vaccines) {
@@ -165,7 +169,9 @@ export default function DashboardScreen({ navigation }) {
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={styles.petEmojiWrap}
               >
-                <Text style={{ fontSize: 30 }}>{SPECIES_EMOJI[pet.species] || '🐾'}</Text>
+                {SPECIES_IMAGES[pet.species]
+                  ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 36, height: 36 }} resizeMode="contain" />
+                  : <Text style={{ fontSize: 30 }}>🐾</Text>}
               </LinearGradient>
               <View style={styles.petInfo}>
                 <Text style={styles.petName}>{pet.name}</Text>

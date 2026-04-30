@@ -2,11 +2,13 @@ import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
-  SafeAreaView,
+  SafeAreaView, Image,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 const FRED_URL = 'https://wqabzvataiellbttoojn.supabase.co/functions/v1/fred-chat';
+
+const FRED_IMG = require('../../../assets/icon_fred.png');
 
 const QUICK_QUESTIONS = [
   'Como estão as vacinas dos meus pets?',
@@ -21,7 +23,7 @@ function Message({ item }) {
     <View style={[styles.msgRow, isFred ? styles.msgRowFred : styles.msgRowUser]}>
       {isFred && (
         <View style={styles.fredAvatar}>
-          <Text style={styles.fredAvatarEmoji}>🐱</Text>
+          <Image source={FRED_IMG} style={{ width: 26, height: 26 }} resizeMode="contain" />
         </View>
       )}
       <View style={[styles.bubble, isFred ? styles.bubbleFred : styles.bubbleUser]}>
@@ -37,7 +39,7 @@ function TypingIndicator() {
   return (
     <View style={styles.msgRow}>
       <View style={styles.fredAvatar}>
-        <Text style={styles.fredAvatarEmoji}>🐱</Text>
+        <Image source={FRED_IMG} style={{ width: 26, height: 26 }} resizeMode="contain" />
       </View>
       <View style={[styles.bubble, styles.bubbleFred, styles.typingBubble]}>
         <Text style={styles.typingDots}>• • •</Text>
@@ -76,7 +78,6 @@ export default function FredScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
-      // Monta histórico para enviar à API (sem o id local)
       const history = newMessages.slice(1, -1).map(m => ({
         role: m.role,
         content: m.content,
@@ -119,9 +120,9 @@ export default function FredScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerAvatar}>
-          <Text style={{ fontSize: 28 }}>🐱</Text>
+          <Image source={FRED_IMG} style={{ width: 36, height: 36 }} resizeMode="contain" />
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerName}>Fred</Text>
           <Text style={styles.headerSub}>Assistente PetCare+</Text>
         </View>
@@ -133,7 +134,6 @@ export default function FredScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={90}
       >
-        {/* Mensagens */}
         <FlatList
           ref={listRef}
           data={messages}
@@ -144,7 +144,6 @@ export default function FredScreen() {
           ListFooterComponent={loading ? <TypingIndicator /> : null}
         />
 
-        {/* Perguntas rápidas */}
         {messages.length <= 1 && !loading && (
           <View style={styles.quickWrap}>
             <Text style={styles.quickLabel}>Perguntas rápidas</Text>
@@ -158,7 +157,6 @@ export default function FredScreen() {
           </View>
         )}
 
-        {/* Input */}
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
@@ -200,14 +198,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
   headerAvatar: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEF9C3',
+    width: 46, height: 46, borderRadius: 23, backgroundColor: '#FEF9C3',
     justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: '#FDE68A',
   },
   headerName: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   headerSub: { fontSize: 12, color: '#94A3B8' },
   onlineIndicator: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981',
-    marginLeft: 'auto',
+    width: 9, height: 9, borderRadius: 5, backgroundColor: '#10B981',
   },
 
   messagesList: { padding: 16, paddingBottom: 8 },
@@ -217,14 +215,12 @@ const styles = StyleSheet.create({
   msgRowUser: { justifyContent: 'flex-end' },
 
   fredAvatar: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#FEF9C3',
+    width: 34, height: 34, borderRadius: 17, backgroundColor: '#FEF9C3',
     justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+    borderWidth: 1.5, borderColor: '#FDE68A',
   },
-  fredAvatarEmoji: { fontSize: 18 },
 
-  bubble: {
-    maxWidth: '78%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10,
-  },
+  bubble: { maxWidth: '78%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   bubbleFred: {
     backgroundColor: '#fff', borderBottomLeftRadius: 4,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },

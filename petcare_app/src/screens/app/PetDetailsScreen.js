@@ -4,6 +4,15 @@ import {
   ActivityIndicator, Alert, RefreshControl, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const SPECIES_IMAGES = {
+  Cachorro: require('../../../assets/pet_cachorro.png'),
+  Gato:     require('../../../assets/pet_gato.png'),
+  Ave:      require('../../../assets/pet_ave.png'),
+  Coelho:   require('../../../assets/pet_coelho.png'),
+  Hamster:  require('../../../assets/pet_hamster.png'),
+  Réptil:   require('../../../assets/pet_reptil.png'),
+};
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import WeightChart from '../../components/WeightChart';
@@ -177,7 +186,7 @@ export default function PetDetailsScreen({ route, navigation }) {
   if (!pet) return null;
 
   const age = calcAge(pet.birth_date);
-  const emoji = SPECIES_EMOJI[pet.species] || '🐾';
+  const speciesImg = SPECIES_IMAGES[pet.species];
   const suggested = SUGGESTED_VACCINES[pet.species] || [];
   const now = new Date();
 
@@ -228,7 +237,9 @@ export default function PetDetailsScreen({ route, navigation }) {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.petAvatarWrap}
             >
-              <Text style={styles.petEmoji}>{emoji}</Text>
+              {speciesImg
+                ? <Image source={speciesImg} style={{ width: 44, height: 44 }} resizeMode="contain" />
+                : <Text style={styles.petEmoji}>🐾</Text>}
             </LinearGradient>
             <View style={styles.petMeta}>
               <Text style={styles.petName}>{pet.name}</Text>

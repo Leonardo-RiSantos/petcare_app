@@ -111,6 +111,28 @@ export default function PetQRScreen({ route }) {
           {/* Divisor */}
           <View style={styles.divider} />
 
+          {/* Personalidade e pelagem */}
+          {(pet.personality?.length > 0 || pet.coat_color) && (
+            <View style={styles.extrasSection}>
+              {pet.coat_color && (
+                <View style={styles.extrasRow}>
+                  <Text style={styles.extrasIcon}>🎨</Text>
+                  <Text style={styles.extrasLabel}>PELAGEM: </Text>
+                  <Text style={styles.extrasValue}>{pet.coat_color}</Text>
+                </View>
+              )}
+              {pet.personality?.length > 0 && (
+                <View style={styles.extrasRow}>
+                  <Text style={styles.extrasIcon}>🐾</Text>
+                  <Text style={styles.extrasLabel}>PERSONALIDADE: </Text>
+                  <Text style={styles.extrasValue}>{pet.personality.join(' · ')}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={[styles.divider, { marginTop: 0 }]} />
+
           {/* Tutor e contato */}
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
@@ -270,6 +292,12 @@ const styles = StyleSheet.create({
   },
   qrCaption: { fontSize: 13, color: '#374151', fontWeight: '600', marginTop: 12 },
   qrSubCaption: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
+
+  extrasSection: { marginBottom: 14, gap: 6 },
+  extrasRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  extrasIcon: { fontSize: 14, marginRight: 4 },
+  extrasLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 },
+  extrasValue: { fontSize: 13, color: '#1E293B', fontWeight: '500', flex: 1 },
 
   cardFooter: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, alignItems: 'center' },
   cardFooterText: { fontSize: 11, color: '#94A3B8', fontWeight: '500' },

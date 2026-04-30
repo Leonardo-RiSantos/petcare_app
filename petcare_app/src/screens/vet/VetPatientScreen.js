@@ -75,6 +75,29 @@ export default function VetPatientScreen({ route, navigation }) {
           {pet.neutered && <View style={styles.badge}><Text style={styles.badgeText}>Castrado(a)</Text></View>}
           {latestWeight && <View style={styles.badge}><Text style={styles.badgeText}>{latestWeight.weight_kg} kg</Text></View>}
         </View>
+
+        {/* Pelagem */}
+        {pet.coat_color && (
+          <View style={styles.extraRow}>
+            <Text style={styles.extraIcon}>🎨</Text>
+            <Text style={styles.extraLabel}>Pelagem: </Text>
+            <Text style={styles.extraValue}>{pet.coat_color}</Text>
+          </View>
+        )}
+
+        {/* Personalidade */}
+        {pet.personality?.length > 0 && (
+          <View style={styles.personalityWrap}>
+            <Text style={styles.personalityTitle}>Personalidade</Text>
+            <View style={styles.personalityChips}>
+              {pet.personality.map(p => (
+                <View key={p} style={styles.personalityChip}>
+                  <Text style={styles.personalityChipText}>{p}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Alertas */}
@@ -181,6 +204,16 @@ const styles = StyleSheet.create({
   recordTitle: { fontSize: 14, fontWeight: '600', color: '#1E293B', marginBottom: 4 },
   recordField: { fontSize: 12, color: '#64748B', marginTop: 2 },
   recordCreator: { fontSize: 11, color: '#94A3B8', marginTop: 6 },
+  extraRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  extraIcon: { fontSize: 14, marginRight: 4 },
+  extraLabel: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
+  extraValue: { fontSize: 13, color: '#1E293B' },
+  personalityWrap: { marginTop: 10, width: '100%' },
+  personalityTitle: { fontSize: 11, fontWeight: '700', color: '#94A3B8', marginBottom: 6, textAlign: 'center' },
+  personalityChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
+  personalityChip: { backgroundColor: '#DCFCE7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  personalityChipText: { fontSize: 12, color: '#16A34A', fontWeight: '600' },
+
   removeBtn: { borderWidth: 1, borderColor: '#FECDD3', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   removeBtnText: { color: '#EF4444', fontWeight: '600' },
 });
