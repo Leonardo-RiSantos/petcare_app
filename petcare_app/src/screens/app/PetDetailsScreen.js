@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -105,7 +105,7 @@ function VaccineCard({ vaccine, registered, onRegister }) {
 }
 
 function TimelineItem({ item }) {
-  const icons = { vaccine: '💉', expense: '💰', weight: '⚖️', medical: '🏥' };
+  const emojiIcons = { vaccine: '💉', expense: '💰', weight: '⚖️' };
   return (
     <View style={styles.timelineItem}>
       <View style={styles.timelineDotWrap}>
@@ -115,7 +115,9 @@ function TimelineItem({ item }) {
       <View style={styles.timelineContent}>
         <Text style={styles.timelineDate}>{item.displayDate}</Text>
         <View style={styles.timelineCard}>
-          <Text style={styles.timelineIcon}>{icons[item.type] || '📋'}</Text>
+          {item.type === 'medical'
+            ? <Image source={require('../../../assets/icon_medical.png')} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            : <Text style={styles.timelineIcon}>{emojiIcons[item.type] || '📋'}</Text>}
           <View style={{ flex: 1 }}>
             <Text style={styles.timelineTitle}>{item.title}</Text>
             {item.subtitle ? <Text style={styles.timelineSubtitle}>{item.subtitle}</Text> : null}

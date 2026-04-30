@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Dimensions,
+  ActivityIndicator, RefreshControl, Dimensions, Image,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,7 +18,7 @@ const CATEGORIES = [
   { key: 'racao',       label: 'Ração',      emoji: '🍖', color: '#F59E0B', light: '#FFFBEB', dark: '#B45309', grad: ['#FEF3C7', '#FFFBEB'] },
   { key: 'veterinario', label: 'Veterinário', emoji: '🏥', color: '#F43F5E', light: '#FFF1F2', dark: '#BE123C', grad: ['#FFE4E6', '#FFF1F2'] },
   { key: 'banho_tosa',  label: 'Banho/Tosa',  emoji: '✂️', color: '#8B5CF6', light: '#F5F3FF', dark: '#6D28D9', grad: ['#EDE9FE', '#F5F3FF'] },
-  { key: 'remedio',     label: 'Remédio',     emoji: '💊', color: '#EC4899', light: '#FDF2F8', dark: '#BE185D', grad: ['#FCE7F3', '#FDF2F8'] },
+  { key: 'remedio',     label: 'Remédio',     emoji: '💊', image: require('../../../assets/icon_medicine.png'), color: '#EC4899', light: '#FDF2F8', dark: '#BE185D', grad: ['#FCE7F3', '#FDF2F8'] },
   { key: 'acessorios',  label: 'Acessórios',  emoji: '🎾', color: '#0EA5E9', light: '#F0F9FF', dark: '#0369A1', grad: ['#E0F2FE', '#F0F9FF'] },
   { key: 'outros',      label: 'Outros',      emoji: '📦', color: '#64748B', light: '#F8FAFC', dark: '#475569', grad: ['#F1F5F9', '#F8FAFC'] },
 ];
@@ -44,7 +44,9 @@ function CategoryCard({ cat, amount, total }) {
       <LinearGradient colors={cat.grad} style={styles.catGrad}>
         {/* Icon */}
         <View style={[styles.catCircle, { backgroundColor: cat.color }]}>
-          <Text style={styles.catEmoji}>{cat.emoji}</Text>
+          {cat.image
+            ? <Image source={cat.image} style={{ width: 28, height: 28 }} resizeMode="contain" />
+            : <Text style={styles.catEmoji}>{cat.emoji}</Text>}
         </View>
 
         <Text style={styles.catLabel}>{cat.label}</Text>

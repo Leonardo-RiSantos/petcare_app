@@ -1,7 +1,13 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, ActivityIndicator, View } from 'react-native';
+import { Text, ActivityIndicator, View, Image } from 'react-native';
+
+const TAB_ICONS = {
+  home:     require('../../assets/icon_home.png'),
+  expenses: require('../../assets/icon_expenses.png'),
+  profile:  require('../../assets/icon_profile.png'),
+};
 import { useAuth } from '../context/AuthContext';
 
 // Auth
@@ -52,10 +58,10 @@ function TutorTabs() {
       headerStyle: { backgroundColor: '#fff' },
       headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
     }}>
-      <Tab.Screen name="HomeTab" component={DashboardScreen} options={{ headerTitle: 'PetCare+', tabBarLabel: 'Início', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🏠</Text> }} />
-      <Tab.Screen name="ExpensesTab" component={ExpensesScreen} options={{ headerTitle: 'Gastos', tabBarLabel: 'Gastos', tabBarIcon: () => <Text style={{ fontSize: 20 }}>💰</Text> }} />
-      <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐱</Text> }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text> }} />
+      <Tab.Screen name="HomeTab" component={DashboardScreen} options={{ headerTitle: 'PetCare+', tabBarLabel: 'Início', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.home} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
+      <Tab.Screen name="ExpensesTab" component={ExpensesScreen} options={{ headerTitle: 'Gastos', tabBarLabel: 'Gastos', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.expenses} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
+      <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 22 }}>🐱</Text> }} />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.profile} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
     </Tab.Navigator>
   );
 }
@@ -88,7 +94,7 @@ function VetTabs() {
     }}>
       <Tab.Screen name="VetHomeTab" component={VetDashboardScreen} options={{ headerTitle: 'Meus Pacientes', tabBarLabel: 'Pacientes', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐾</Text> }} />
       <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐱</Text> }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: () => <Text style={{ fontSize: 20 }}>👤</Text> }} />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.profile} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
     </Tab.Navigator>
   );
 }
