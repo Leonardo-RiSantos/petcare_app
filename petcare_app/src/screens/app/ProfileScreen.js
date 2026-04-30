@@ -1,21 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, Alert, RefreshControl, Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
-
-function StatCard({ emoji, label, value }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statEmoji}>{emoji}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
 
 function Section({ title, children }) {
   return (
@@ -127,8 +118,16 @@ export default function ProfileScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0EA5E9" />}
     >
-      {/* Avatar */}
-      <View style={styles.avatarSection}>
+      {/* Hero com avatar */}
+      <LinearGradient
+        colors={['#0284C7', '#0EA5E9', '#38BDF8']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={[styles.bubble, { width: 130, height: 130, top: -35, right: -25 }]} />
+        <View style={[styles.bubble, { width: 70, height: 70, bottom: -15, left: 35 }]} />
+
+        {/* Avatar */}
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
@@ -140,13 +139,14 @@ export default function ProfileScreen() {
               value={nameInput}
               onChangeText={setNameInput}
               placeholder="Seu nome"
+              placeholderTextColor="rgba(255,255,255,0.6)"
               autoFocus
               returnKeyType="done"
               onSubmitEditing={saveName}
             />
             <TouchableOpacity style={styles.saveBtn} onPress={saveName} disabled={savingName}>
               {savingName
-                ? <ActivityIndicator size="small" color="#fff" />
+                ? <ActivityIndicator size="small" color="#0EA5E9" />
                 : <Text style={styles.saveBtnText}>Salvar</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingName(false)}>
@@ -155,44 +155,60 @@ export default function ProfileScreen() {
           </View>
         ) : (
           <TouchableOpacity onPress={() => setEditingName(true)} style={styles.nameRow}>
-            <Text style={styles.name}>
-              {profile.full_name || 'Adicionar nome'}
-            </Text>
+            <Text style={styles.name}>{profile.full_name || 'Adicionar nome'}</Text>
             <Text style={styles.editIcon}>✏️</Text>
           </TouchableOpacity>
         )}
 
         <Text style={styles.email}>{user?.email}</Text>
-      </View>
+      </LinearGradient>
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <StatCard emoji="🐾" label="Pets" value={stats.pets} />
-        <StatCard emoji="💉" label="Vacinas" value={stats.vaccines} />
-        <StatCard emoji="💰" label="Total gasto" value={formatCurrency(stats.totalExpenses)} />
+        <View style={styles.statCard}>
+          <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
+            <Text style={styles.statEmoji}>🐾</Text>
+          </LinearGradient>
+          <Text style={styles.statValue}>{stats.pets}</Text>
+          <Text style={styles.statLabel}>Pets</Text>
+        </View>
+        <View style={styles.statCard}>
+          <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
+            <Text style={styles.statEmoji}>💉</Text>
+          </LinearGradient>
+          <Text style={styles.statValue}>{stats.vaccines}</Text>
+          <Text style={styles.statLabel}>Vacinas</Text>
+        </View>
+        <View style={styles.statCard}>
+          <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
+            <Text style={styles.statEmoji}>💰</Text>
+          </LinearGradient>
+          <Text style={[styles.statValue, { fontSize: 13 }]}>{formatCurrency(stats.totalExpenses)}</Text>
+          <Text style={styles.statLabel}>Total gasto</Text>
+        </View>
       </View>
 
-      {/* Conta */}
-      <Section title="Conta">
-        <Row emoji="📧" label="Email" value={user?.email} />
-        <Row
-          emoji="👤"
-          label="Nome"
-          value={profile.full_name || '—'}
-          onPress={() => setEditingName(true)}
-        />
-      </Section>
+      {/* Seções */}
+      <View style={styles.sections}>
+        <Section title="Conta">
+          <Row emoji="📧" label="Email" value={user?.email} />
+          <Row
+            emoji="👤"
+            label="Nome"
+            value={profile.full_name || '—'}
+            onPress={() => setEditingName(true)}
+          />
+        </Section>
 
-      {/* App */}
-      <Section title="App">
-        <Row emoji="🐱" label="Fred — Assistente IA" value="Ativo" />
-        <Row emoji="📱" label="Versão" value="1.0.0" />
-      </Section>
+        <Section title="App">
+          <Row emoji="🐱" label="Fred — Assistente IA" value="Ativo" />
+          <Row emoji="📱" label="Versão" value="1.0.0" />
+        </Section>
 
-      {/* Sair */}
-      <Section title="Sessão">
-        <Row emoji="🚪" label="Sair da conta" onPress={handleSignOut} danger />
-      </Section>
+        <Section title="Sessão">
+          <Row emoji="🚪" label="Sair da conta" onPress={handleSignOut} danger />
+        </Section>
+      </View>
 
       <Text style={styles.footer}>PetCare+ · Feito com 🐾</Text>
     </ScrollView>
@@ -201,52 +217,72 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  avatarSection: { alignItems: 'center', marginBottom: 24 },
-  avatar: {
-    width: 88, height: 88, borderRadius: 44, backgroundColor: '#0EA5E9',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  hero: {
+    paddingTop: 36, paddingBottom: 32, paddingHorizontal: 24,
+    alignItems: 'center', overflow: 'hidden',
   },
-  avatarText: { fontSize: 32, fontWeight: '700', color: '#fff' },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  name: { fontSize: 22, fontWeight: '700', color: '#1E293B' },
-  editIcon: { fontSize: 16 },
-  email: { fontSize: 14, color: '#94A3B8' },
+  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
 
-  nameEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  avatar: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)',
+  },
+  avatarText: { fontSize: 34, fontWeight: '700', color: '#fff' },
+
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  name: { fontSize: 22, fontWeight: '700', color: '#fff' },
+  editIcon: { fontSize: 16 },
+  email: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
+
+  nameEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, width: '100%' },
   nameInput: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 14,
-    paddingVertical: 10, fontSize: 16, borderWidth: 1, borderColor: '#BAE6FD', color: '#1E293B',
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 16,
+    color: '#fff', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
   },
   saveBtn: {
-    backgroundColor: '#0EA5E9', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10,
   },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  saveBtnText: { color: '#0EA5E9', fontWeight: '700', fontSize: 14 },
   cancelBtn: {
-    backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
   },
-  cancelBtnText: { color: '#64748B', fontSize: 16 },
+  cancelBtnText: { color: '#fff', fontSize: 16 },
 
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+  statsRow: {
+    flexDirection: 'row', gap: 10, paddingHorizontal: 20,
+    marginTop: 20, marginBottom: 24,
   },
-  statEmoji: { fontSize: 24, marginBottom: 6 },
-  statValue: { fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 2 },
+  statCard: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 18, padding: 14, alignItems: 'center',
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: '#EFF6FF',
+  },
+  statIconWrap: {
+    width: 44, height: 44, borderRadius: 22,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
+  statEmoji: { fontSize: 22 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 2 },
   statLabel: { fontSize: 11, color: '#94A3B8', textAlign: 'center' },
 
+  sections: { paddingHorizontal: 20 },
   section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#94A3B8', marginBottom: 8, paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: {
+    fontSize: 12, fontWeight: '700', color: '#94A3B8', marginBottom: 8,
+    paddingHorizontal: 4, textTransform: 'uppercase', letterSpacing: 0.8,
+  },
   sectionCard: {
-    backgroundColor: '#fff', borderRadius: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, overflow: 'hidden',
+    backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden',
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    borderWidth: 1, borderColor: '#EFF6FF',
   },
 
   row: {
@@ -256,8 +292,8 @@ const styles = StyleSheet.create({
   rowEmoji: { fontSize: 20, marginRight: 12, width: 28, textAlign: 'center' },
   rowLabel: { flex: 1, fontSize: 15, color: '#1E293B' },
   rowDanger: { color: '#EF4444' },
-  rowValue: { fontSize: 14, color: '#94A3B8', maxWidth: 160, textAlign: 'right' },
-  rowArrow: { fontSize: 20, color: '#CBD5E1', marginLeft: 8 },
+  rowValue: { fontSize: 13, color: '#94A3B8', maxWidth: 160, textAlign: 'right' },
+  rowArrow: { fontSize: 20, color: '#BAE6FD', marginLeft: 8 },
 
-  footer: { textAlign: 'center', color: '#CBD5E1', fontSize: 12, marginTop: 12 },
+  footer: { textAlign: 'center', color: '#BAE6FD', fontSize: 12, marginTop: 12 },
 });

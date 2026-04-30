@@ -1,13 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import WeightChart from '../../components/WeightChart';
 
-// Vacinas sugeridas por espécie
 const SUGGESTED_VACCINES = {
   Cachorro: [
     { name: 'V8/V10 (Polivalente)', desc: 'Proteção contra cinomose, parvovirose, hepatite, leptospirose e outras doenças' },
@@ -27,6 +27,13 @@ const SUGGESTED_VACCINES = {
 
 const SPECIES_EMOJI = { Cachorro: '🐶', Gato: '🐱', Ave: '🐦', Coelho: '🐰', Hamster: '🐹', Réptil: '🦎', Outro: '🐾' };
 
+const formatDate = (d) => {
+  if (!d) return '—';
+  const s = String(d).split('T')[0];
+  const [y, m, day] = s.split('-');
+  return `${day}/${m}/${y}`;
+};
+
 function calcAge(birthDate) {
   if (!birthDate) return null;
   const birth = new Date(birthDate);
@@ -39,10 +46,10 @@ function calcAge(birthDate) {
 
 function VaccineStatusBadge({ status }) {
   const config = {
-    'Em dia':    { bg: '#DCFCE7', color: '#16A34A', dot: '#16A34A' },
-    'Vencendo':  { bg: '#FEF9C3', color: '#B45309', dot: '#F59E0B' },
-    'Atrasada':  { bg: '#FEE2E2', color: '#DC2626', dot: '#EF4444' },
-    'Pendente':  { bg: '#FFF7ED', color: '#C2410C', dot: '#F97316' },
+    'Em dia':   { bg: '#DCFCE7', color: '#16A34A' },
+    'Vencendo': { bg: '#FEF9C3', color: '#B45309' },
+    'Atrasada': { bg: '#FEE2E2', color: '#DC2626' },
+    'Pendente': { bg: '#EFF6FF', color: '#0369A1' },
   };
   const c = config[status] || config['Pendente'];
   return (
@@ -65,8 +72,7 @@ function VaccineCard({ vaccine, registered, onRegister }) {
       else status = 'Em dia';
     }
   }
-
-  const dotColor = { 'Em dia': '#10B981', 'Vencendo': '#F59E0B', 'Atrasada': '#EF4444', 'Pendente': '#94A3B8' };
+  const dotColor = { 'Em dia': '#10B981', 'Vencendo': '#F59E0B', 'Atrasada': '#EF4444', 'Pendente': '#BAE6FD' };
 
   return (
     <View style={styles.vaccineCard}>
@@ -79,12 +85,18 @@ function VaccineCard({ vaccine, registered, onRegister }) {
         <Text style={styles.vaccineCardDesc}>{vaccine.desc}</Text>
         {registered ? (
           <Text style={styles.vaccineCardDate}>
-            Aplicada: {registered.applied_date}
-            {registered.next_dose_date ? `  •  Próxima: ${registered.next_dose_date}` : ''}
+            Aplicada: {formatDate(registered.applied_date)}
+            {registered.next_dose_date ? `  •  Próxima: ${formatDate(registered.next_dose_date)}` : ''}
           </Text>
         ) : (
           <TouchableOpacity style={styles.registerBtn} onPress={() => onRegister(vaccine.name)}>
-            <Text style={styles.registerBtnText}>Registrar</Text>
+            <LinearGradient
+              colors={['#0EA5E9', '#38BDF8']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.registerBtnGrad}
+            >
+              <Text style={styles.registerBtnText}>Registrar</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
       </View>
@@ -101,7 +113,7 @@ function TimelineItem({ item }) {
         <View style={styles.timelineLine} />
       </View>
       <View style={styles.timelineContent}>
-        <Text style={styles.timelineDate}>{item.date}</Text>
+        <Text style={styles.timelineDate}>{item.displayDate}</Text>
         <View style={styles.timelineCard}>
           <Text style={styles.timelineIcon}>{icons[item.type] || '📋'}</Text>
           <View style={{ flex: 1 }}>
@@ -159,29 +171,28 @@ export default function PetDetailsScreen({ route, navigation }) {
     navigation.navigate('AddVaccine', { petId, petName: pet.name, petSpecies: pet.species, prefillName: vaccineName });
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#10B981" /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
   if (!pet) return null;
 
   const age = calcAge(pet.birth_date);
   const emoji = SPECIES_EMOJI[pet.species] || '🐾';
   const suggested = SUGGESTED_VACCINES[pet.species] || [];
   const now = new Date();
+
   const monthExpenses = expenses.filter(e => {
     const d = new Date(e.date);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).reduce((s, e) => s + Number(e.amount), 0);
 
-  // Próximas vacinas pendentes
   const pendingCount = suggested.filter(s => !vaccines.find(v => v.name.toLowerCase().includes(s.name.split(' ')[0].toLowerCase()))).length;
   const nextVaccine = vaccines.find(v => v.next_dose_date && new Date(v.next_dose_date) > now);
   const latestWeight = weightRecords[0];
 
-  // Timeline
   const timeline = [
-    ...vaccines.map(v => ({ type: 'vaccine', date: v.applied_date, title: v.name, subtitle: `Aplicada${v.veterinarian ? ` — ${v.veterinarian}` : ''}` })),
-    ...expenses.slice(0, 5).map(e => ({ type: 'expense', date: e.date, title: e.description || e.category, subtitle: `R$ ${Number(e.amount).toFixed(2)}` })),
-    ...weightRecords.slice(0, 5).map(w => ({ type: 'weight', date: w.date, title: `Peso: ${w.weight_kg} kg`, subtitle: w.notes })),
-    ...medicalRecords.slice(0, 5).map(m => ({ type: 'medical', date: m.date, title: m.title, subtitle: m.type })),
+    ...vaccines.map(v => ({ type: 'vaccine', date: v.applied_date, displayDate: formatDate(v.applied_date), title: v.name, subtitle: `Aplicada${v.veterinarian ? ` — ${v.veterinarian}` : ''}` })),
+    ...expenses.slice(0, 5).map(e => ({ type: 'expense', date: e.date, displayDate: formatDate(e.date), title: e.description || e.category, subtitle: `R$ ${Number(e.amount).toFixed(2)}` })),
+    ...weightRecords.slice(0, 5).map(w => ({ type: 'weight', date: w.date, displayDate: formatDate(w.date), title: `Peso: ${w.weight_kg} kg`, subtitle: w.notes })),
+    ...medicalRecords.slice(0, 5).map(m => ({ type: 'medical', date: m.date, displayDate: formatDate(m.date), title: m.title, subtitle: m.type })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return (
@@ -204,26 +215,30 @@ export default function PetDetailsScreen({ route, navigation }) {
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10B981" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0EA5E9" />}
       >
-        {/* Card principal do pet */}
+        {/* Card principal */}
         <View style={styles.petCard}>
           {/* Avatar + info */}
           <View style={styles.petTop}>
-            <View style={styles.petAvatarWrap}>
+            <LinearGradient
+              colors={['#DBEAFE', '#EFF6FF']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.petAvatarWrap}
+            >
               <Text style={styles.petEmoji}>{emoji}</Text>
-            </View>
+            </LinearGradient>
             <View style={styles.petMeta}>
               <Text style={styles.petName}>{pet.name}</Text>
               <View style={styles.petTagsRow}>
                 {pet.species && <View style={styles.petTag}><Text style={styles.petTagText}>{pet.species}</Text></View>}
                 {pet.breed && <View style={styles.petTag}><Text style={styles.petTagText}>{pet.breed}</Text></View>}
-                {pet.neutered && <View style={[styles.petTag, styles.petTagGreen]}><Text style={[styles.petTagText, { color: '#16A34A' }]}>Castrado</Text></View>}
+                {pet.neutered && <View style={[styles.petTag, styles.petTagBlue]}><Text style={[styles.petTagText, { color: '#0369A1' }]}>Castrado</Text></View>}
               </View>
               <Text style={styles.petInfoRow}>
                 {age ? `Idade: ${age}` : ''}
-                {age && pet.user_id ? '  •  ' : ''}
-                Tutor: Leonardo
+                {age ? '  •  ' : ''}
+                {pet.birth_date ? `Nasc.: ${formatDate(pet.birth_date)}` : ''}
               </Text>
             </View>
           </View>
@@ -315,10 +330,16 @@ export default function PetDetailsScreen({ route, navigation }) {
               <WeightChart records={[...weightRecords].sort((a, b) => new Date(a.date) - new Date(b.date))} />
             </View>
             <TouchableOpacity
-              style={styles.addWeightBtn}
+              style={styles.addWeightBtnWrap}
               onPress={() => navigation.navigate('AddWeight', { petId, petName: pet.name, currentWeight: latestWeight?.weight_kg })}
             >
-              <Text style={styles.addWeightBtnText}>+ Registrar peso</Text>
+              <LinearGradient
+                colors={['#0EA5E9', '#38BDF8']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={styles.addWeightBtnGrad}
+              >
+                <Text style={styles.addWeightBtnText}>+ Registrar peso</Text>
+              </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('WeightHistory', { petId, petName: pet.name })}>
               <Text style={styles.viewHistoryLink}>Ver histórico completo →</Text>
@@ -337,10 +358,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
     paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 1, borderBottomColor: '#EFF6FF',
   },
   backBtn: { marginRight: 12, padding: 4 },
-  backIcon: { fontSize: 22, color: '#10B981' },
+  backIcon: { fontSize: 22, color: '#0EA5E9' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#1E293B' },
   headerActions: { flexDirection: 'row', gap: 8 },
   headerBtn: { padding: 6 },
@@ -349,50 +370,51 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 40 },
 
   petCard: {
-    backgroundColor: '#fff', margin: 16, borderRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 12, elevation: 4,
+    backgroundColor: '#fff', margin: 16, borderRadius: 22,
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1, shadowRadius: 14, elevation: 4,
     overflow: 'hidden',
   },
 
   petTop: { flexDirection: 'row', padding: 16, alignItems: 'center', gap: 14 },
   petAvatarWrap: {
-    width: 70, height: 70, borderRadius: 35, backgroundColor: '#ECFDF5',
-    justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#D1FAE5',
+    width: 70, height: 70, borderRadius: 35,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: '#BFDBFE',
   },
   petEmoji: { fontSize: 38 },
   petMeta: { flex: 1 },
   petName: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 6 },
   petTagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
   petTag: { backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  petTagGreen: { backgroundColor: '#DCFCE7' },
+  petTagBlue: { backgroundColor: '#DBEAFE' },
   petTagText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   petInfoRow: { fontSize: 12, color: '#94A3B8' },
 
-  statsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  statsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#EFF6FF' },
   statBox: { flex: 1, padding: 12, alignItems: 'center' },
-  statBoxBorder: { borderLeftWidth: 1, borderLeftColor: '#F1F5F9' },
+  statBoxBorder: { borderLeftWidth: 1, borderLeftColor: '#EFF6FF' },
   statLabel: { fontSize: 9, fontWeight: '700', color: '#94A3B8', textAlign: 'center', letterSpacing: 0.3, marginBottom: 4 },
   statValue: { fontSize: 16, fontWeight: '800', color: '#1E293B', textAlign: 'center' },
   statValueSm: { fontSize: 13 },
 
-  tabBar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  tabBar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#EFF6FF' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#10B981' },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#0EA5E9' },
   tabBtnText: { fontSize: 13, fontWeight: '600', color: '#94A3B8' },
-  tabBtnTextActive: { color: '#10B981' },
+  tabBtnTextActive: { color: '#0EA5E9' },
 
   tabContent: { paddingHorizontal: 16, paddingTop: 4 },
   tabContentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 8 },
   tabContentTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginTop: 8, marginBottom: 12 },
-  tabContentAdd: { fontSize: 14, fontWeight: '600', color: '#10B981' },
+  tabContentAdd: { fontSize: 14, fontWeight: '600', color: '#0EA5E9' },
 
-  // Vaccine cards
   vaccineCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
+    backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10,
     flexDirection: 'row', alignItems: 'flex-start',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    borderWidth: 1, borderColor: '#F0F9FF',
   },
   vaccineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, marginRight: 12, flexShrink: 0 },
   vaccineCardContent: { flex: 1 },
@@ -402,41 +424,35 @@ const styles = StyleSheet.create({
   vaccineCardDate: { fontSize: 11, color: '#94A3B8' },
   badge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0 },
   badgeText: { fontSize: 10, fontWeight: '700' },
-  registerBtn: {
-    backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 9,
-    alignItems: 'center', marginTop: 2,
-  },
+  registerBtn: { borderRadius: 12, overflow: 'hidden', marginTop: 2 },
+  registerBtnGrad: { paddingVertical: 9, alignItems: 'center' },
   registerBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
-  // Timeline
   timelineItem: { flexDirection: 'row', marginBottom: 4 },
   timelineDotWrap: { alignItems: 'center', width: 20, marginRight: 12 },
-  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#10B981', marginTop: 14 },
-  timelineLine: { flex: 1, width: 2, backgroundColor: '#E2E8F0', marginTop: 2 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0EA5E9', marginTop: 14 },
+  timelineLine: { flex: 1, width: 2, backgroundColor: '#E0F2FE', marginTop: 2 },
   timelineContent: { flex: 1, paddingBottom: 12 },
   timelineDate: { fontSize: 11, color: '#94A3B8', marginTop: 12, marginBottom: 4 },
   timelineCard: {
     backgroundColor: '#fff', borderRadius: 12, padding: 12,
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
   timelineIcon: { fontSize: 20 },
   timelineTitle: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
   timelineSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
 
-  // Evolução
   chartCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 14,
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
-  addWeightBtn: {
-    backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 14,
-    alignItems: 'center', marginBottom: 10,
-  },
+  addWeightBtnWrap: { borderRadius: 14, overflow: 'hidden', marginBottom: 10 },
+  addWeightBtnGrad: { paddingVertical: 14, alignItems: 'center' },
   addWeightBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  viewHistoryLink: { textAlign: 'center', color: '#10B981', fontWeight: '600', fontSize: 14, paddingVertical: 4 },
+  viewHistoryLink: { textAlign: 'center', color: '#0EA5E9', fontWeight: '600', fontSize: 14, paddingVertical: 4 },
 
-  emptyCard: { backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center' },
+  emptyCard: { backgroundColor: '#fff', borderRadius: 18, padding: 32, alignItems: 'center' },
   emptyEmoji: { fontSize: 40, marginBottom: 10 },
   emptyText: { fontSize: 14, color: '#94A3B8' },
 });
