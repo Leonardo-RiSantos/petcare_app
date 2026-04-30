@@ -2,13 +2,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, ActivityIndicator, View, Image } from 'react-native';
-
-const TAB_ICONS = {
-  home:     require('../../assets/icon_home.png'),
-  expenses: require('../../assets/icon_expenses.png'),
-  profile:  require('../../assets/icon_profile.png'),
-};
 import { useAuth } from '../context/AuthContext';
+import FredFloat from '../components/FredFloat';
 
 // Auth
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -36,6 +31,12 @@ import VetPatientScreen from '../screens/vet/VetPatientScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+const TAB_ICONS = {
+  home:     require('../../assets/icon_home.png'),
+  expenses: require('../../assets/icon_expenses.png'),
+  profile:  require('../../assets/icon_profile.png'),
+};
+
 const NAV_OPTS = {
   headerStyle: { backgroundColor: '#fff' },
   headerTintColor: '#0EA5E9',
@@ -52,17 +53,48 @@ const VET_NAV_OPTS = {
 // ─── TUTOR ───────────────────────────────────────────────
 function TutorTabs() {
   return (
-    <Tab.Navigator screenOptions={{
-      tabBarActiveTintColor: '#0EA5E9', tabBarInactiveTintColor: '#94A3B8',
-      tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4 },
-      headerStyle: { backgroundColor: '#fff' },
-      headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
-    }}>
-      <Tab.Screen name="HomeTab" component={DashboardScreen} options={{ headerTitle: 'PetCare+', tabBarLabel: 'Início', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.home} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
-      <Tab.Screen name="ExpensesTab" component={ExpensesScreen} options={{ headerTitle: 'Gastos', tabBarLabel: 'Gastos', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.expenses} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
-      <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 22 }}>🐱</Text> }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.profile} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator screenOptions={{
+        tabBarActiveTintColor: '#0EA5E9', tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4, height: 62 },
+        headerStyle: { backgroundColor: '#fff' },
+        headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
+      }}>
+        <Tab.Screen
+          name="HomeTab"
+          component={DashboardScreen}
+          options={{
+            headerTitle: 'PetCare+', tabBarLabel: 'Início',
+            tabBarIcon: ({ focused }) => (
+              <Image source={TAB_ICONS.home} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="ExpensesTab"
+          component={ExpensesScreen}
+          options={{
+            headerTitle: 'Gastos', tabBarLabel: 'Gastos',
+            tabBarIcon: ({ focused }) => (
+              <Image source={TAB_ICONS.expenses} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="ProfileTab"
+          component={ProfileScreen}
+          options={{
+            headerTitle: 'Perfil', tabBarLabel: 'Perfil',
+            tabBarIcon: ({ focused }) => (
+              <Image source={TAB_ICONS.profile} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+
+      {/* Fred flutuante — acima do menu */}
+      <FredFloat />
+    </View>
   );
 }
 
@@ -70,6 +102,7 @@ function TutorStack() {
   return (
     <Stack.Navigator screenOptions={NAV_OPTS}>
       <Stack.Screen name="Main" component={TutorTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="Fred" component={FredScreen} options={{ title: 'Fred 🐱' }} />
       <Stack.Screen name="AddPet" component={AddPetScreen} options={{ title: 'Novo Pet' }} />
       <Stack.Screen name="PetDetails" component={PetDetailsScreen} options={{ title: 'Detalhes do Pet' }} />
       <Stack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ title: 'Nova Vacina' }} />
@@ -86,16 +119,36 @@ function TutorStack() {
 // ─── VETERINÁRIO ─────────────────────────────────────────
 function VetTabs() {
   return (
-    <Tab.Navigator screenOptions={{
-      tabBarActiveTintColor: '#10B981', tabBarInactiveTintColor: '#94A3B8',
-      tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4 },
-      headerStyle: { backgroundColor: '#fff' },
-      headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
-    }}>
-      <Tab.Screen name="VetHomeTab" component={VetDashboardScreen} options={{ headerTitle: 'Meus Pacientes', tabBarLabel: 'Pacientes', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐾</Text> }} />
-      <Tab.Screen name="FredTab" component={FredScreen} options={{ headerTitle: 'Fred', tabBarLabel: 'Fred', tabBarIcon: () => <Text style={{ fontSize: 20 }}>🐱</Text> }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ headerTitle: 'Perfil', tabBarLabel: 'Perfil', tabBarIcon: ({ focused }) => <Image source={TAB_ICONS.profile} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" /> }} />
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator screenOptions={{
+        tabBarActiveTintColor: '#10B981', tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#E2E8F0', paddingBottom: 4, height: 62 },
+        headerStyle: { backgroundColor: '#fff' },
+        headerTintColor: '#1E293B', headerTitleStyle: { fontWeight: '700' },
+      }}>
+        <Tab.Screen
+          name="VetHomeTab"
+          component={VetDashboardScreen}
+          options={{
+            headerTitle: 'Meus Pacientes', tabBarLabel: 'Pacientes',
+            tabBarIcon: () => <Text style={{ fontSize: 22 }}>🐾</Text>,
+          }}
+        />
+        <Tab.Screen
+          name="ProfileTab"
+          component={ProfileScreen}
+          options={{
+            headerTitle: 'Perfil', tabBarLabel: 'Perfil',
+            tabBarIcon: ({ focused }) => (
+              <Image source={TAB_ICONS.profile} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+
+      {/* Fred flutuante para vets também */}
+      <FredFloat />
+    </View>
   );
 }
 
@@ -103,6 +156,7 @@ function VetStack() {
   return (
     <Stack.Navigator screenOptions={VET_NAV_OPTS}>
       <Stack.Screen name="VetMain" component={VetTabs} options={{ headerShown: false }} />
+      <Stack.Screen name="Fred" component={FredScreen} options={{ title: 'Fred 🐱' }} />
       <Stack.Screen name="VetPatient" component={VetPatientScreen} options={{ title: 'Paciente' }} />
       <Stack.Screen name="AddMedicalRecord" component={AddMedicalRecordScreen} options={{ title: 'Novo Registro' }} />
     </Stack.Navigator>
