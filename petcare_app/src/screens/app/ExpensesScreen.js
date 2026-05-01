@@ -15,8 +15,8 @@ const CARD_W = (width - 52) / 2;
 // Azul céu: #0EA5E9 | Azul marinho: #0F3460 | Ciano: #38BDF8
 // Laranja accent: #F59E0B | Background: #F0F9FF
 const CATEGORIES = [
-  { key: 'racao',       label: 'Ração',      emoji: '🍖', color: '#F59E0B', light: '#FFFBEB', dark: '#B45309', grad: ['#FEF3C7', '#FFFBEB'] },
-  { key: 'veterinario', label: 'Veterinário', emoji: '🏥', color: '#F43F5E', light: '#FFF1F2', dark: '#BE123C', grad: ['#FFE4E6', '#FFF1F2'] },
+  { key: 'racao',       label: 'Ração',      emoji: '🍖', image: require('../../../assets/icon_racao.png'),   color: '#F59E0B', light: '#FFFBEB', dark: '#B45309', grad: ['#FEF3C7', '#FFFBEB'] },
+  { key: 'veterinario', label: 'Veterinário', emoji: '🏥', image: require('../../../assets/icon_medical.png'), color: '#F43F5E', light: '#FFF1F2', dark: '#BE123C', grad: ['#FFE4E6', '#FFF1F2'] },
   { key: 'banho_tosa',  label: 'Banho/Tosa',  emoji: '✂️', color: '#8B5CF6', light: '#F5F3FF', dark: '#6D28D9', grad: ['#EDE9FE', '#F5F3FF'] },
   { key: 'remedio',     label: 'Remédio',     emoji: '💊', image: require('../../../assets/icon_medicine.png'), color: '#EC4899', light: '#FDF2F8', dark: '#BE185D', grad: ['#FCE7F3', '#FDF2F8'] },
   { key: 'acessorios',  label: 'Acessórios',  emoji: '🎾', color: '#0EA5E9', light: '#F0F9FF', dark: '#0369A1', grad: ['#E0F2FE', '#F0F9FF'] },
@@ -24,7 +24,15 @@ const CATEGORIES = [
 ];
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const SPECIES_EMOJI = { Cachorro: '🐶', Gato: '🐱', Ave: '🐦', Coelho: '🐰', Hamster: '🐹', Réptil: '🦎', Outro: '🐾' };
+
+const SPECIES_IMAGES = {
+  Cachorro: require('../../../assets/pet_cachorro.png'),
+  Gato:     require('../../../assets/pet_gato.png'),
+  Ave:      require('../../../assets/pet_ave.png'),
+  Coelho:   require('../../../assets/pet_coelho.png'),
+  Hamster:  require('../../../assets/pet_hamster.png'),
+  Réptil:   require('../../../assets/pet_reptil.png'),
+};
 
 function fmt(v) {
   return `R$ ${Number(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
@@ -68,7 +76,9 @@ function TxCard({ expense, pets }) {
   return (
     <View style={styles.txCard}>
       <View style={[styles.txIcon, { backgroundColor: cat.light }]}>
-        <Text style={styles.txEmoji}>{cat.emoji}</Text>
+        {cat.image
+          ? <Image source={cat.image} style={{ width: 26, height: 26 }} resizeMode="contain" />
+          : <Text style={styles.txEmoji}>{cat.emoji}</Text>}
       </View>
       <View style={styles.txBody}>
         <Text style={styles.txTitle} numberOfLines={1}>{expense.description || cat.label}</Text>
@@ -168,7 +178,9 @@ export default function ExpensesScreen({ navigation, route }) {
             style={[styles.chip, selectedPetId === p.id && styles.chipActive]}
             onPress={() => setSelectedPetId(p.id)}
           >
-            <Text style={styles.chipEmoji}>{SPECIES_EMOJI[p.species] || '🐾'}</Text>
+            {SPECIES_IMAGES[p.species]
+            ? <Image source={SPECIES_IMAGES[p.species]} style={{ width: 20, height: 20 }} resizeMode="contain" />
+            : <Text style={styles.chipEmoji}>🐾</Text>}
             <Text style={[styles.chipTxt, selectedPetId === p.id && styles.chipTxtActive]}>{p.name}</Text>
           </TouchableOpacity>
         ))}

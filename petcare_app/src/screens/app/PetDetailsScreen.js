@@ -1,9 +1,13 @@
 import { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, RefreshControl, Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
+  ActivityIndicator, Alert, RefreshControl, Image, TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
+import WeightChart from '../../components/WeightChart';
 
 const SPECIES_IMAGES = {
   Cachorro: require('../../../assets/pet_cachorro.png'),
@@ -13,9 +17,6 @@ const SPECIES_IMAGES = {
   Hamster:  require('../../../assets/pet_hamster.png'),
   Réptil:   require('../../../assets/pet_reptil.png'),
 };
-import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../../lib/supabase';
-import WeightChart from '../../components/WeightChart';
 
 const SUGGESTED_VACCINES = {
   Cachorro: [
@@ -33,8 +34,6 @@ const SUGGESTED_VACCINES = {
     { name: 'Leucemia Felina (FeLV)', desc: 'Previne a leucemia viral felina' },
   ],
 };
-
-const SPECIES_EMOJI = { Cachorro: '🐶', Gato: '🐱', Ave: '🐦', Coelho: '🐰', Hamster: '🐹', Réptil: '🦎', Outro: '🐾' };
 
 const formatDate = (d) => {
   if (!d) return '—';
@@ -82,9 +81,10 @@ function VaccineCard({ vaccine, registered, onRegister }) {
     }
   }
   const dotColor = { 'Em dia': '#10B981', 'Vencendo': '#F59E0B', 'Atrasada': '#EF4444', 'Pendente': '#BAE6FD' };
+  const isPending = !registered;
 
   return (
-    <View style={styles.vaccineCard}>
+    <View style={[styles.vaccineCard, isPending && styles.vaccineCardPending]}>
       <View style={[styles.vaccineDot, { backgroundColor: dotColor[status] }]} />
       <View style={styles.vaccineCardContent}>
         <View style={styles.vaccineCardHeader}>
@@ -93,10 +93,16 @@ function VaccineCard({ vaccine, registered, onRegister }) {
         </View>
         <Text style={styles.vaccineCardDesc}>{vaccine.desc}</Text>
         {registered ? (
-          <Text style={styles.vaccineCardDate}>
-            Aplicada: {formatDate(registered.applied_date)}
-            {registered.next_dose_date ? `  •  Próxima: ${formatDate(registered.next_dose_date)}` : ''}
-          </Text>
+          <View style={styles.vaccineAppliedInfo}>
+            <Text style={styles.vaccineAppliedDate}>
+              ✅ Aplicada em {formatDate(registered.applied_date)}
+            </Text>
+            {registered.next_dose_date && (
+              <Text style={[styles.vaccineNextDate, new Date(registered.next_dose_date) < today && styles.vaccineNextDateLate]}>
+                📅 Próxima: {formatDate(registered.next_dose_date)}
+              </Text>
+            )}
+          </View>
         ) : (
           <TouchableOpacity style={styles.registerBtn} onPress={() => onRegister(vaccine.name)}>
             <LinearGradient
@@ -104,7 +110,7 @@ function VaccineCard({ vaccine, registered, onRegister }) {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.registerBtnGrad}
             >
-              <Text style={styles.registerBtnText}>Registrar</Text>
+              <Text style={styles.registerBtnText}>Registrar vacina</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -139,7 +145,9 @@ function TimelineItem({ item }) {
 
 export default function PetDetailsScreen({ route, navigation }) {
   const { petId } = route.params;
+  const { user } = useAuth();
   const [pet, setPet] = useState(null);
+  const [tutorName, setTutorName] = useState('');
   const [vaccines, setVaccines] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [weightRecords, setWeightRecords] = useState([]);
@@ -148,19 +156,29 @@ export default function PetDetailsScreen({ route, navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('vacinas');
 
+  // Saúde do pet
+  const [editingHealth, setEditingHealth] = useState(false);
+  const [healthForm, setHealthForm] = useState({ health_notes: '', medications: '' });
+  const [savingHealth, setSavingHealth] = useState(false);
+
   const fetchData = async () => {
-    const [petRes, vacRes, expRes, wRes, medRes] = await Promise.all([
+    const [petRes, vacRes, expRes, wRes, medRes, profileRes] = await Promise.all([
       supabase.from('pets').select('*').eq('id', petId).single(),
       supabase.from('vaccines').select('*').eq('pet_id', petId).order('applied_date', { ascending: false }),
       supabase.from('expenses').select('*').eq('pet_id', petId).order('date', { ascending: false }),
       supabase.from('weight_records').select('*').eq('pet_id', petId).order('date', { ascending: false }),
       supabase.from('medical_records').select('*').eq('pet_id', petId).order('date', { ascending: false }),
+      supabase.from('profiles').select('full_name').eq('id', user.id).single(),
     ]);
-    if (petRes.data) setPet(petRes.data);
+    if (petRes.data) {
+      setPet(petRes.data);
+      setHealthForm({ health_notes: petRes.data.health_notes || '', medications: petRes.data.medications || '' });
+    }
     if (vacRes.data) setVaccines(vacRes.data);
     if (expRes.data) setExpenses(expRes.data);
     if (wRes.data) setWeightRecords(wRes.data);
     if (medRes.data) setMedicalRecords(medRes.data);
+    if (profileRes.data) setTutorName(profileRes.data.full_name || '');
     setLoading(false);
     setRefreshing(false);
   };
@@ -180,6 +198,24 @@ export default function PetDetailsScreen({ route, navigation }) {
 
   const handleRegisterVaccine = (vaccineName) => {
     navigation.navigate('AddVaccine', { petId, petName: pet.name, petSpecies: pet.species, prefillName: vaccineName });
+  };
+
+  const openHealthEdit = () => {
+    setHealthForm({ health_notes: pet.health_notes || '', medications: pet.medications || '' });
+    setEditingHealth(true);
+  };
+
+  const saveHealth = async () => {
+    setSavingHealth(true);
+    const { error } = await supabase.from('pets').update({
+      health_notes: healthForm.health_notes.trim() || null,
+      medications: healthForm.medications.trim() || null,
+    }).eq('id', petId);
+    setSavingHealth(false);
+    if (!error) {
+      setPet(prev => ({ ...prev, health_notes: healthForm.health_notes.trim() || null, medications: healthForm.medications.trim() || null }));
+      setEditingHealth(false);
+    }
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
@@ -216,10 +252,10 @@ export default function PetDetailsScreen({ route, navigation }) {
         <Text style={styles.headerTitle}>{pet.name}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('PetQR', { petId })}>
-            <Text style={styles.headerBtnIcon}>📱</Text>
+            <Image source={require('../../../assets/icon_doc.png')} style={{ width: 26, height: 26 }} resizeMode="contain" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={handleDelete}>
-            <Text style={styles.headerBtnIcon}>🗑</Text>
+            <Image source={require('../../../assets/icon_trash.png')} style={{ width: 26, height: 26 }} resizeMode="contain" />
           </TouchableOpacity>
         </View>
       </View>
@@ -232,11 +268,7 @@ export default function PetDetailsScreen({ route, navigation }) {
         <View style={styles.petCard}>
           {/* Avatar + info */}
           <View style={styles.petTop}>
-            <LinearGradient
-              colors={['#DBEAFE', '#EFF6FF']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.petAvatarWrap}
-            >
+            <LinearGradient colors={['#DBEAFE', '#EFF6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.petAvatarWrap}>
               {speciesImg
                 ? <Image source={speciesImg} style={{ width: 44, height: 44 }} resizeMode="contain" />
                 : <Text style={styles.petEmoji}>🐾</Text>}
@@ -250,9 +282,10 @@ export default function PetDetailsScreen({ route, navigation }) {
               </View>
               <Text style={styles.petInfoRow}>
                 {age ? `Idade: ${age}` : ''}
-                {age ? '  •  ' : ''}
+                {age && pet.birth_date ? '  •  ' : ''}
                 {pet.birth_date ? `Nasc.: ${formatDate(pet.birth_date)}` : ''}
               </Text>
+              {tutorName ? <Text style={styles.petTutorRow}>👤 Tutor: {tutorName}</Text> : null}
             </View>
           </View>
 
@@ -278,9 +311,40 @@ export default function PetDetailsScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Tabs */}
+          {/* Saúde do pet */}
+          {(pet.health_notes || pet.medications) ? (
+            <View style={styles.healthSection}>
+              {pet.health_notes && (
+                <View style={styles.healthRow}>
+                  <Text style={styles.healthIcon}>🌿</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.healthLabel}>Saúde</Text>
+                    <Text style={styles.healthValue}>{pet.health_notes}</Text>
+                  </View>
+                </View>
+              )}
+              {pet.medications && (
+                <View style={styles.healthRow}>
+                  <Text style={styles.healthIcon}>💊</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.healthLabel}>Medicamentos</Text>
+                    <Text style={styles.healthValue}>{pet.medications}</Text>
+                  </View>
+                </View>
+              )}
+              <TouchableOpacity onPress={openHealthEdit} style={styles.healthEditLink}>
+                <Text style={styles.healthEditText}>✏️ Editar informações de saúde</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.healthAddBtn} onPress={openHealthEdit}>
+              <Text style={styles.healthAddText}>🌿 Adicionar notas de saúde e medicamentos</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Tabs — ordem: Vacinas | Evolução | Linha */}
           <View style={styles.tabBar}>
-            {['vacinas', 'linha', 'evolução'].map(tab => (
+            {['vacinas', 'evolução', 'linha'].map(tab => (
               <TouchableOpacity
                 key={tab}
                 style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
@@ -320,7 +384,28 @@ export default function PetDetailsScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Tab: Linha do tempo */}
+        {/* Tab: Evolução de Peso */}
+        {activeTab === 'evolução' && (
+          <View style={styles.tabContent}>
+            <Text style={styles.tabContentTitle}>Evolução de Peso</Text>
+            <View style={styles.chartCard}>
+              <WeightChart records={[...weightRecords].sort((a, b) => new Date(a.date) - new Date(b.date))} />
+            </View>
+            <TouchableOpacity
+              style={styles.addWeightBtnWrap}
+              onPress={() => navigation.navigate('AddWeight', { petId, petName: pet.name, currentWeight: latestWeight?.weight_kg })}
+            >
+              <LinearGradient colors={['#0EA5E9', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addWeightBtnGrad}>
+                <Text style={styles.addWeightBtnText}>+ Registrar peso</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('WeightHistory', { petId, petName: pet.name })}>
+              <Text style={styles.viewHistoryLink}>Ver histórico completo →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Tab: Linha do tempo (último) */}
         {activeTab === 'linha' && (
           <View style={styles.tabContent}>
             <Text style={styles.tabContentTitle}>Linha do Tempo</Text>
@@ -334,32 +419,52 @@ export default function PetDetailsScreen({ route, navigation }) {
             )}
           </View>
         )}
-
-        {/* Tab: Evolução */}
-        {activeTab === 'evolução' && (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabContentTitle}>Evolução de Peso</Text>
-            <View style={styles.chartCard}>
-              <WeightChart records={[...weightRecords].sort((a, b) => new Date(a.date) - new Date(b.date))} />
-            </View>
-            <TouchableOpacity
-              style={styles.addWeightBtnWrap}
-              onPress={() => navigation.navigate('AddWeight', { petId, petName: pet.name, currentWeight: latestWeight?.weight_kg })}
-            >
-              <LinearGradient
-                colors={['#0EA5E9', '#38BDF8']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={styles.addWeightBtnGrad}
-              >
-                <Text style={styles.addWeightBtnText}>+ Registrar peso</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('WeightHistory', { petId, petName: pet.name })}>
-              <Text style={styles.viewHistoryLink}>Ver histórico completo →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
+
+      {/* Modal de edição de saúde */}
+      <Modal visible={editingHealth} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🌿 Saúde e bem-estar</Text>
+            <Text style={styles.modalSubtitle}>Essas informações ajudam o veterinário a cuidar melhor do {pet.name} 💙</Text>
+
+            <Text style={styles.modalLabel}>Condições de saúde</Text>
+            <TextInput
+              style={styles.modalInput}
+              multiline
+              numberOfLines={3}
+              placeholder="Alergias, condições especiais, cuidados importantes..."
+              placeholderTextColor="#9CA3AF"
+              value={healthForm.health_notes}
+              onChangeText={v => setHealthForm(prev => ({ ...prev, health_notes: v }))}
+            />
+
+            <Text style={styles.modalLabel}>Medicamentos em uso</Text>
+            <TextInput
+              style={styles.modalInput}
+              multiline
+              numberOfLines={3}
+              placeholder="Nome do medicamento, dosagem, frequência..."
+              placeholderTextColor="#9CA3AF"
+              value={healthForm.medications}
+              onChangeText={v => setHealthForm(prev => ({ ...prev, medications: v }))}
+            />
+
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setEditingHealth(false)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveBtnWrap} onPress={saveHealth} disabled={savingHealth}>
+                <LinearGradient colors={['#0EA5E9', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.modalSaveBtn}>
+                  {savingHealth
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.modalSaveText}>Salvar</Text>}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -368,33 +473,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
-    paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#EFF6FF',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#EFF6FF' },
   backBtn: { marginRight: 12, padding: 4 },
   backIcon: { fontSize: 22, color: '#0EA5E9' },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#1E293B' },
-  headerActions: { flexDirection: 'row', gap: 8 },
-  headerBtn: { padding: 6 },
-  headerBtnIcon: { fontSize: 18 },
+  headerActions: { flexDirection: 'row', gap: 10 },
+  headerBtn: { padding: 4 },
 
   content: { paddingBottom: 40 },
 
-  petCard: {
-    backgroundColor: '#fff', margin: 16, borderRadius: 22,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1, shadowRadius: 14, elevation: 4,
-    overflow: 'hidden',
-  },
+  petCard: { backgroundColor: '#fff', margin: 16, borderRadius: 22, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 4, overflow: 'hidden' },
 
   petTop: { flexDirection: 'row', padding: 16, alignItems: 'center', gap: 14 },
-  petAvatarWrap: {
-    width: 70, height: 70, borderRadius: 35,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: '#BFDBFE',
-  },
+  petAvatarWrap: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#BFDBFE' },
   petEmoji: { fontSize: 38 },
   petMeta: { flex: 1 },
   petName: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 6 },
@@ -403,6 +494,7 @@ const styles = StyleSheet.create({
   petTagBlue: { backgroundColor: '#DBEAFE' },
   petTagText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   petInfoRow: { fontSize: 12, color: '#94A3B8' },
+  petTutorRow: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
 
   statsRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#EFF6FF' },
   statBox: { flex: 1, padding: 12, alignItems: 'center' },
@@ -410,6 +502,17 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 9, fontWeight: '700', color: '#94A3B8', textAlign: 'center', letterSpacing: 0.3, marginBottom: 4 },
   statValue: { fontSize: 16, fontWeight: '800', color: '#1E293B', textAlign: 'center' },
   statValueSm: { fontSize: 13 },
+
+  // Saúde
+  healthSection: { borderTopWidth: 1, borderTopColor: '#EFF6FF', padding: 14, gap: 10 },
+  healthRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  healthIcon: { fontSize: 18, marginTop: 1 },
+  healthLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  healthValue: { fontSize: 13, color: '#374151', lineHeight: 19 },
+  healthEditLink: { alignSelf: 'flex-end' },
+  healthEditText: { fontSize: 12, color: '#0EA5E9', fontWeight: '600' },
+  healthAddBtn: { borderTopWidth: 1, borderTopColor: '#EFF6FF', padding: 14, alignItems: 'center' },
+  healthAddText: { fontSize: 13, color: '#0EA5E9', fontWeight: '600' },
 
   tabBar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#EFF6FF' },
   tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },
@@ -422,44 +525,38 @@ const styles = StyleSheet.create({
   tabContentTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginTop: 8, marginBottom: 12 },
   tabContentAdd: { fontSize: 14, fontWeight: '600', color: '#0EA5E9' },
 
-  vaccineCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10,
-    flexDirection: 'row', alignItems: 'flex-start',
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-    borderWidth: 1, borderColor: '#F0F9FF',
-  },
+  // Vaccine cards
+  vaccineCard: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-start', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#F0F9FF' },
+  vaccineCardPending: { borderColor: '#EFF6FF', borderLeftWidth: 3, borderLeftColor: '#BAE6FD' },
   vaccineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, marginRight: 12, flexShrink: 0 },
   vaccineCardContent: { flex: 1 },
   vaccineCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 8 },
   vaccineCardName: { fontSize: 14, fontWeight: '700', color: '#1E293B', flex: 1 },
   vaccineCardDesc: { fontSize: 12, color: '#64748B', lineHeight: 17, marginBottom: 10 },
-  vaccineCardDate: { fontSize: 11, color: '#94A3B8' },
+  vaccineAppliedInfo: { gap: 4 },
+  vaccineAppliedDate: { fontSize: 12, color: '#16A34A', fontWeight: '600' },
+  vaccineNextDate: { fontSize: 11, color: '#64748B' },
+  vaccineNextDateLate: { color: '#EF4444' },
   badge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0 },
   badgeText: { fontSize: 10, fontWeight: '700' },
   registerBtn: { borderRadius: 12, overflow: 'hidden', marginTop: 2 },
   registerBtnGrad: { paddingVertical: 9, alignItems: 'center' },
   registerBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
+  // Timeline
   timelineItem: { flexDirection: 'row', marginBottom: 4 },
   timelineDotWrap: { alignItems: 'center', width: 20, marginRight: 12 },
   timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0EA5E9', marginTop: 14 },
   timelineLine: { flex: 1, width: 2, backgroundColor: '#E0F2FE', marginTop: 2 },
   timelineContent: { flex: 1, paddingBottom: 12 },
   timelineDate: { fontSize: 11, color: '#94A3B8', marginTop: 12, marginBottom: 4 },
-  timelineCard: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
-  },
+  timelineCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   timelineIcon: { fontSize: 20 },
   timelineTitle: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
   timelineSubtitle: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
 
-  chartCard: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 14,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-  },
+  // Evolução
+  chartCard: { backgroundColor: '#fff', borderRadius: 18, padding: 16, marginBottom: 14, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   addWeightBtnWrap: { borderRadius: 14, overflow: 'hidden', marginBottom: 10 },
   addWeightBtnGrad: { paddingVertical: 14, alignItems: 'center' },
   addWeightBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
@@ -468,4 +565,18 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: '#fff', borderRadius: 18, padding: 32, alignItems: 'center' },
   emptyEmoji: { fontSize: 40, marginBottom: 10 },
   emptyText: { fontSize: 14, color: '#94A3B8' },
+
+  // Modal saúde
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 420 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 6 },
+  modalSubtitle: { fontSize: 13, color: '#64748B', marginBottom: 20, lineHeight: 19 },
+  modalLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8 },
+  modalInput: { backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1.5, borderColor: '#E0F2FE', padding: 14, fontSize: 14, color: '#1E293B', textAlignVertical: 'top', marginBottom: 16, minHeight: 80 },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalCancelBtn: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  modalCancelText: { color: '#64748B', fontWeight: '700' },
+  modalSaveBtnWrap: { flex: 1, borderRadius: 14, overflow: 'hidden' },
+  modalSaveBtn: { paddingVertical: 14, alignItems: 'center' },
+  modalSaveText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

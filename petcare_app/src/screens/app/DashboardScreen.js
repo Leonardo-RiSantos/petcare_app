@@ -17,6 +17,11 @@ const SPECIES_IMAGES = {
   Réptil:   require('../../../assets/pet_reptil.png'),
 };
 
+// Ícones de status de vacina
+const ICON_CHECK   = require('../../../assets/icon_check.png');
+const ICON_WARNING = require('../../../assets/icon_warning.png');
+const ICON_LATE    = require('../../../assets/icon_late.png');
+
 function calcVaccineStatus(vaccines) {
   const today = new Date();
   const in30 = new Date(); in30.setDate(today.getDate() + 30);
@@ -35,16 +40,19 @@ export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
   const [pets, setPets] = useState([]);
   const [vaccines, setVaccines] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = async () => {
-    const [petsRes, vacRes] = await Promise.all([
+    const [petsRes, vacRes, profileRes] = await Promise.all([
       supabase.from('pets').select('*').eq('user_id', user.id).order('created_at'),
       supabase.from('vaccines').select('*').eq('user_id', user.id),
+      supabase.from('profiles').select('full_name').eq('id', user.id).single(),
     ]);
     if (petsRes.data) setPets(petsRes.data);
     if (vacRes.data) setVaccines(vacRes.data);
+    if (profileRes.data) setProfile(profileRes.data);
     setLoading(false);
     setRefreshing(false);
   };
@@ -52,6 +60,9 @@ export default function DashboardScreen({ navigation }) {
   useFocusEffect(useCallback(() => { fetchData(); }, []));
   const onRefresh = () => { setRefreshing(true); fetchData(); };
   const { ok, warning, late } = calcVaccineStatus(vaccines);
+
+  // Primeiro nome do usuário
+  const firstName = profile?.full_name?.split(' ')[0] || 'tutor';
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
@@ -73,7 +84,7 @@ export default function DashboardScreen({ navigation }) {
         <View style={[styles.bubble, { width: 85, height: 85, top: 25, right: 75 }]} />
         <View style={[styles.bubble, { width: 55, height: 55, bottom: -15, left: 45 }]} />
 
-        <Text style={styles.heroTitle}>Olá, tutor! 🐾</Text>
+        <Text style={styles.heroTitle}>Olá, {firstName}! 🐾</Text>
         <Text style={styles.heroSub}>Tudo organizado em um só lugar</Text>
 
         <View style={styles.heroPanel}>
@@ -83,20 +94,15 @@ export default function DashboardScreen({ navigation }) {
           </View>
           <View style={styles.heroDivider} />
           <View style={styles.heroStat}>
-            <Text style={styles.heroStatNum}>{ok}</Text>
-            <Text style={styles.heroStatLabel}>Em dia</Text>
+            <Text style={styles.heroStatNum}>{vaccines.length}</Text>
+            <Text style={styles.heroStatLabel}>Vacinas</Text>
           </View>
           <View style={styles.heroDivider} />
           <View style={styles.heroStat}>
             <Text style={[styles.heroStatNum, (late + warning) > 0 && styles.heroStatAlert]}>
               {late + warning}
             </Text>
-            <Text style={styles.heroStatLabel}>Atenção</Text>
-          </View>
-          <View style={styles.heroDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatNum}>{vaccines.length}</Text>
-            <Text style={styles.heroStatLabel}>Vacinas</Text>
+            <Text style={styles.heroStatLabel}>Alertas</Text>
           </View>
         </View>
       </LinearGradient>
@@ -105,17 +111,17 @@ export default function DashboardScreen({ navigation }) {
       <Text style={styles.sectionTitle}>Status das Vacinas</Text>
       <View style={styles.vaccineRow}>
         <View style={[styles.vaccineCard, styles.vaccineOk]}>
-          <Text style={styles.vaccineIcon}>✅</Text>
+          <Image source={ICON_CHECK} style={styles.vaccineCardIcon} resizeMode="contain" />
           <Text style={styles.vaccineCount}>{ok}</Text>
           <Text style={styles.vaccineLabel}>Em dia</Text>
         </View>
         <View style={[styles.vaccineCard, styles.vaccineWarn]}>
-          <Text style={styles.vaccineIcon}>⚠️</Text>
+          <Image source={ICON_WARNING} style={styles.vaccineCardIcon} resizeMode="contain" />
           <Text style={styles.vaccineCount}>{warning}</Text>
           <Text style={styles.vaccineLabel}>Vencendo</Text>
         </View>
         <View style={[styles.vaccineCard, styles.vaccineLate]}>
-          <Text style={styles.vaccineIcon}>🔴</Text>
+          <Image source={ICON_LATE} style={styles.vaccineCardIcon} resizeMode="contain" />
           <Text style={styles.vaccineCount}>{late}</Text>
           <Text style={styles.vaccineLabel}>Atrasadas</Text>
         </View>
@@ -124,10 +130,7 @@ export default function DashboardScreen({ navigation }) {
       {/* Meus Pets */}
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>Meus Pets</Text>
-        <TouchableOpacity
-          style={styles.addBtnWrap}
-          onPress={() => navigation.navigate('AddPet')}
-        >
+        <TouchableOpacity style={styles.addBtnWrap} onPress={() => navigation.navigate('AddPet')}>
           <LinearGradient
             colors={['#0EA5E9', '#38BDF8']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -144,11 +147,7 @@ export default function DashboardScreen({ navigation }) {
           <Text style={styles.emptyTitle}>Nenhum pet cadastrado ainda</Text>
           <Text style={styles.emptySub}>Adicione seu primeiro pet para começar!</Text>
           <TouchableOpacity onPress={() => navigation.navigate('AddPet')}>
-            <LinearGradient
-              colors={['#0EA5E9', '#38BDF8']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.emptyBtn}
-            >
+            <LinearGradient colors={['#0EA5E9', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.emptyBtn}>
               <Text style={styles.emptyBtnText}>Adicionar pet</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -164,11 +163,7 @@ export default function DashboardScreen({ navigation }) {
               onPress={() => navigation.navigate('PetDetails', { petId: pet.id })}
               activeOpacity={0.82}
             >
-              <LinearGradient
-                colors={['#DBEAFE', '#EFF6FF']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.petEmojiWrap}
-              >
+              <LinearGradient colors={['#DBEAFE', '#EFF6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.petEmojiWrap}>
                 {SPECIES_IMAGES[pet.species]
                   ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 36, height: 36 }} resizeMode="contain" />
                   : <Text style={{ fontSize: 30 }}>🐾</Text>}
@@ -187,9 +182,13 @@ export default function DashboardScreen({ navigation }) {
                   <View style={[styles.badge, styles.badgeWarn]}>
                     <Text style={[styles.badgeTxt, { color: '#D97706' }]}>Vencendo</Text>
                   </View>
-                ) : (
+                ) : petVaccines.length > 0 ? (
                   <View style={[styles.badge, styles.badgeOk]}>
                     <Text style={[styles.badgeTxt, { color: '#16A34A' }]}>Em dia</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.badge, styles.badgeNone]}>
+                    <Text style={[styles.badgeTxt, { color: '#94A3B8' }]}>Sem vacinas</Text>
                   </View>
                 )}
                 <Text style={styles.petArrow}>›</Text>
@@ -207,72 +206,41 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  hero: {
-    paddingHorizontal: 24, paddingTop: 28, paddingBottom: 28,
-    overflow: 'hidden',
-  },
+  hero: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 28, overflow: 'hidden' },
   bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
   heroTitle: { fontSize: 27, fontWeight: '800', color: '#fff', marginBottom: 4 },
   heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginBottom: 20 },
-  heroPanel: {
-    flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 18, padding: 16,
-  },
+  heroPanel: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 18, padding: 16 },
   heroStat: { flex: 1, alignItems: 'center' },
   heroStatNum: { fontSize: 22, fontWeight: '800', color: '#fff' },
   heroStatAlert: { color: '#FEF08A' },
   heroStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   heroDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 2 },
 
-  sectionTitle: {
-    fontSize: 16, fontWeight: '700', color: '#1E293B',
-    marginBottom: 12, paddingHorizontal: 20, marginTop: 22,
-  },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, marginTop: 22, marginBottom: 12,
-  },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 12, paddingHorizontal: 20, marginTop: 22 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 22, marginBottom: 12 },
   addBtnWrap: { borderRadius: 22, overflow: 'hidden' },
   addBtnGrad: { paddingHorizontal: 16, paddingVertical: 8 },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   vaccineRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20 },
-  vaccineCard: {
-    flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
-  },
+  vaccineCard: { flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1 },
   vaccineOk: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
   vaccineWarn: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
   vaccineLate: { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' },
-  vaccineIcon: { fontSize: 20, marginBottom: 4 },
+  vaccineCardIcon: { width: 32, height: 32, marginBottom: 6 },
   vaccineCount: { fontSize: 22, fontWeight: '800', color: '#1E293B' },
   vaccineLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
 
-  emptyState: {
-    backgroundColor: '#fff', borderRadius: 22, padding: 36, alignItems: 'center',
-    marginHorizontal: 20,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 10, elevation: 2,
-    borderWidth: 1, borderColor: '#EFF6FF',
-  },
+  emptyState: { backgroundColor: '#fff', borderRadius: 22, padding: 36, alignItems: 'center', marginHorizontal: 20, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: '#EFF6FF' },
   emptyEmoji: { fontSize: 52, marginBottom: 14 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: '#1E293B', marginBottom: 6 },
   emptySub: { fontSize: 13, color: '#94A3B8', textAlign: 'center', marginBottom: 24 },
   emptyBtn: { borderRadius: 16, paddingHorizontal: 30, paddingVertical: 14 },
   emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  petCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 14,
-    marginHorizontal: 20, marginBottom: 10,
-    flexDirection: 'row', alignItems: 'center',
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
-    borderWidth: 1, borderColor: '#EFF6FF',
-  },
-  petEmojiWrap: {
-    width: 54, height: 54, borderRadius: 27,
-    justifyContent: 'center', alignItems: 'center', marginRight: 14,
-  },
+  petCard: { backgroundColor: '#fff', borderRadius: 20, padding: 14, marginHorizontal: 20, marginBottom: 10, flexDirection: 'row', alignItems: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#EFF6FF' },
+  petEmojiWrap: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   petInfo: { flex: 1 },
   petName: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   petBreed: { fontSize: 13, color: '#64748B', marginTop: 2 },
@@ -283,5 +251,6 @@ const styles = StyleSheet.create({
   badgeOk: { backgroundColor: '#DCFCE7' },
   badgeWarn: { backgroundColor: '#FEF9C3' },
   badgeLate: { backgroundColor: '#FFE4E6' },
+  badgeNone: { backgroundColor: '#F1F5F9' },
   badgeTxt: { fontSize: 11, fontWeight: '700' },
 });

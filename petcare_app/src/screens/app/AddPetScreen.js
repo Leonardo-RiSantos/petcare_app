@@ -39,6 +39,18 @@ const coatLabel = (species) => {
   return 'Cor / aparência';
 };
 
+// Converte DD/MM/AAAA → AAAA-MM-DD para salvar no banco
+const parseBirthDate = (input) => {
+  if (!input || !input.trim()) return null;
+  const match = input.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const [, d, m, y] = match;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input.trim())) return input.trim();
+  return null;
+};
+
 export default function AddPetScreen({ navigation }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -53,6 +65,8 @@ export default function AddPetScreen({ navigation }) {
     weight_kg: '',
     coat_color: '',
     personality: [],
+    health_notes: '',
+    medications: '',
   });
 
   const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -73,6 +87,8 @@ export default function AddPetScreen({ navigation }) {
       Alert.alert('Atenção', 'Descreva o tipo de animal.'); return;
     }
 
+    const birthDateParsed = parseBirthDate(form.birth_date);
+
     setLoading(true);
     const { error } = await supabase.from('pets').insert({
       user_id: user.id,
@@ -81,11 +97,13 @@ export default function AddPetScreen({ navigation }) {
       custom_species: form.species === 'Outro' ? form.custom_species.trim() : null,
       breed: form.breed || null,
       sex: form.sex || null,
-      birth_date: form.birth_date || null,
+      birth_date: birthDateParsed,
       neutered: form.neutered,
       weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
       coat_color: form.coat_color || null,
       personality: form.personality.length > 0 ? form.personality : null,
+      health_notes: form.health_notes.trim() || null,
+      medications: form.medications.trim() || null,
     });
     setLoading(false);
 
@@ -133,7 +151,7 @@ export default function AddPetScreen({ navigation }) {
 
       {/* Campo "Outro" espécie */}
       {form.species === 'Outro' && (
-        <View style={styles.customSpeciesWrap}>
+        <View style={{ marginTop: 10 }}>
           <Text style={styles.labelSmall}>Qual animal é? *</Text>
           <TextInput
             style={styles.input}
@@ -231,6 +249,36 @@ export default function AddPetScreen({ navigation }) {
         })}
       </View>
 
+      {/* Saúde e medicamentos */}
+      <View style={styles.healthSection}>
+        <Text style={styles.healthSectionTitle}>🌿 Saúde e bem-estar</Text>
+        <Text style={styles.healthSectionHint}>Opcional — ajuda o veterinário a cuidar melhor do seu pet</Text>
+
+        <Text style={styles.labelSmall}>Condições de saúde</Text>
+        <TextInput
+          style={[styles.input, styles.inputMulti]}
+          multiline
+          numberOfLines={3}
+          placeholder="Alergias, condições especiais, cuidados importantes..."
+          placeholderTextColor="#9CA3AF"
+          value={form.health_notes}
+          onChangeText={v => set('health_notes', v)}
+          textAlignVertical="top"
+        />
+
+        <Text style={styles.labelSmall}>Medicamentos em uso</Text>
+        <TextInput
+          style={[styles.input, styles.inputMulti]}
+          multiline
+          numberOfLines={3}
+          placeholder="Nome do medicamento, dosagem, frequência..."
+          placeholderTextColor="#9CA3AF"
+          value={form.medications}
+          onChangeText={v => set('medications', v)}
+          textAlignVertical="top"
+        />
+      </View>
+
       {/* Castrado */}
       <View style={styles.switchRow}>
         <Text style={styles.label}>Castrado(a)?</Text>
@@ -263,51 +311,48 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingBottom: 50 },
 
   label: { fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 20 },
-  labelSmall: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  labelSmall: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
   labelHint: { fontSize: 12, color: '#94A3B8', marginTop: -6, marginBottom: 10 },
 
   input: {
     backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
     fontSize: 15, borderWidth: 1.5, borderColor: '#E0F2FE', color: '#1E293B',
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
+  inputMulti: { minHeight: 80, paddingTop: 14 },
 
-  // Species grid
   speciesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   speciesChip: {
     width: '30%', backgroundColor: '#fff', borderRadius: 18, paddingVertical: 14,
     alignItems: 'center', borderWidth: 2, borderColor: '#E0F2FE',
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 1,
   },
   speciesChipActive: { borderColor: '#0EA5E9', backgroundColor: '#EFF6FF' },
   speciesLabel: { fontSize: 11, fontWeight: '600', color: '#64748B', marginTop: 6 },
   speciesLabelActive: { color: '#0EA5E9' },
 
-  customSpeciesWrap: { marginTop: 10 },
-
-  // Chips genéricos (sexo)
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E0F2FE',
-  },
+  chip: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 22, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E0F2FE' },
   chipActive: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
   chipText: { fontSize: 14, color: '#64748B', fontWeight: '600' },
   chipTextActive: { color: '#fff' },
 
-  // Personalidade
   personalityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   personalityChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#fff', borderRadius: 22, paddingHorizontal: 12, paddingVertical: 9,
     borderWidth: 1.5, borderColor: '#E0F2FE',
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
   personalityChipSelected: { backgroundColor: '#EFF6FF', borderColor: '#0EA5E9' },
   personalityEmoji: { fontSize: 16 },
   personalityLabel: { fontSize: 13, color: '#64748B', fontWeight: '600' },
   personalityLabelSelected: { color: '#0EA5E9' },
   checkmark: { fontSize: 12, color: '#0EA5E9', fontWeight: '800' },
+
+  healthSection: {
+    marginTop: 24, backgroundColor: '#fff', borderRadius: 18, padding: 16,
+    borderWidth: 1.5, borderColor: '#E0F2FE',
+  },
+  healthSectionTitle: { fontSize: 15, fontWeight: '800', color: '#1E293B', marginBottom: 4 },
+  healthSectionHint: { fontSize: 12, color: '#94A3B8', marginBottom: 4 },
 
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 },
 
