@@ -22,15 +22,17 @@ import MapCategoryFilter from '../../components/MapCategoryFilter';
 import PetPlaceBottomSheet from '../../components/PetPlaceBottomSheet';
 
 // MapView só disponível no native
-let MapView, Marker;
+let MapView, Marker, UrlTile;
 if (Platform.OS !== 'web') {
   const Maps = require('react-native-maps');
   MapView = Maps.default;
   Marker  = Maps.Marker;
+  UrlTile = Maps.UrlTile; // tiles OSM gratuitos no Android
 }
 
+const HAS_GOOGLE_KEY = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
 const IS_WEB = Platform.OS === 'web';
-const HAS_API_KEY = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const SAOPAULO_DEFAULT = { latitude: -23.5505, longitude: -46.6333 };
 
@@ -132,13 +134,7 @@ export default function PetMapScreen() {
 
   async function loadPlaces(lat, lng, category, radius) {
     setLoadingPlaces(true);
-    const { places: result, error } = await searchNearbyPlaces(lat, lng, category, radius);
-
-    if (error === 'API_KEY_MISSING') {
-      loadPlacesDemo(lat, lng);
-      return;
-    }
-
+    const { places: result } = await searchNearbyPlaces(lat, lng, category, radius);
     let sorted = sortByDistance(result, lat, lng);
 
     // Se não encontrou, tenta raio maior
@@ -153,11 +149,15 @@ export default function PetMapScreen() {
     applyFilter(sorted, category);
     setLoadingPlaces(false);
 
-    // Verificar proximidade para Fred
-    if (sorted.length > 0) {
-      const notif = await checkProximityNotification(lat, lng, sorted, false);
-      if (notif) setFredMsg(notif.message);
+    // Fallback para dados demo se não encontrou nada
+    if (sorted.length === 0) {
+      loadPlacesDemo(lat, lng);
+      return;
     }
+
+    // Verificar proximidade para Fred
+    const notif = await checkProximityNotification(lat, lng, sorted, false);
+    if (notif) setFredMsg(notif.message);
   }
 
   function loadPlacesDemo(lat, lng) {
@@ -184,8 +184,8 @@ export default function PetMapScreen() {
   const handlePlacePress = useCallback(async (place) => {
     setSelectedPlace(place);
     setShowList(false);
-    // Busca detalhes (telefone, horário) se não disponíveis ainda
-    if (!place.phone && !isDemo && HAS_API_KEY) {
+    // Busca detalhes extras via Google Places (apenas se tiver chave e não for OSM/demo)
+    if (!place.phone && !isDemo && HAS_GOOGLE_KEY && !place.id?.startsWith('osm_')) {
       const details = await getPlaceDetails(place.id);
       if (details) {
         const updated = { ...place, ...details };
@@ -283,11 +283,20 @@ export default function PetMapScreen() {
         <MapView
           ref={mapRef}
           style={styles.map}
-          provider="google"
+          provider={HAS_GOOGLE_KEY ? 'google' : undefined}
           initialRegion={region}
           showsUserLocation
           showsMyLocationButton={false}
+          mapType={HAS_GOOGLE_KEY ? 'standard' : 'none'}
         >
+          {/* Tiles OSM gratuitos quando não há Google key (Android) */}
+          {!HAS_GOOGLE_KEY && Platform.OS === 'android' && UrlTile && (
+            <UrlTile
+              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
+          )}
           {filteredPlaces.map(p => (
             <PetMarker
               key={p.id}
@@ -302,16 +311,16 @@ export default function PetMapScreen() {
           <Text style={styles.webMapTitle}>🗺️ Mapa Pet</Text>
           <Text style={styles.webMapSub}>
             {isDemo
-              ? 'Mapa disponível no app mobile. Locais de exemplo abaixo.'
-              : 'Abra no app mobile para ver o mapa interativo.'}
+            ? 'Mapa interativo disponível no app mobile.'
+            : 'Abra no app mobile para ver o mapa interativo.'}
           </Text>
-          {isDemo && (
-            <View style={styles.webMapNote}>
-              <Text style={styles.webMapNoteText}>
-                🔑 Configure EXPO_PUBLIC_GOOGLE_MAPS_API_KEY no .env para dados reais
-              </Text>
-            </View>
-          )}
+          <View style={styles.webMapNote}>
+            <Text style={styles.webMapNoteText}>
+              {isDemo
+                ? '📍 Instale o app no celular para ver locais reais perto de você'
+                : '✅ Dados reais via OpenStreetMap — sem custo'}
+            </Text>
+          </View>
         </LinearGradient>
       )}
 
