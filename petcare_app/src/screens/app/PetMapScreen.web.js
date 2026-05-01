@@ -9,7 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  searchNearbyPlaces, getDemoPlaces, CATEGORY_CONFIG,
+  searchNearbyPlaces, CATEGORY_CONFIG,
 } from '../../services/placesService';
 import { sortByDistance, formatDistance } from '../../utils/distanceUtils';
 import PetPlaceBottomSheet from '../../components/PetPlaceBottomSheet';
@@ -60,7 +60,6 @@ export default function PetMapScreen() {
   const [loading,        setLoading]        = useState(true);
   const [loadingPlaces,  setLoadingPlaces]  = useState(false);
   const [savedIds,       setSavedIds]       = useState([]);
-  const [isDemo,         setIsDemo]         = useState(false);
   const [searchRadius,   setSearchRadius]   = useState(3000);
 
   // ── Salvos ────────────────────────────────────────────────────────────────
@@ -83,32 +82,36 @@ export default function PetMapScreen() {
         () => {
           setUserLocation(SP_DEFAULT);
           setLoading(false);
-          loadDemo(SP_DEFAULT.latitude, SP_DEFAULT.longitude);
+          loadPlaces(SP_DEFAULT.latitude, SP_DEFAULT.longitude, 'all', 3000);
         },
         { timeout: 8000 }
       );
     } else {
       setUserLocation(SP_DEFAULT);
       setLoading(false);
-      loadDemo(SP_DEFAULT.latitude, SP_DEFAULT.longitude);
+      loadPlaces(SP_DEFAULT.latitude, SP_DEFAULT.longitude, 'all', 3000);
     }
   }
 
+  // Busca progressiva: tenta raios crescentes antes de desistir
   async function loadPlaces(lat, lng, category, radius) {
     setLoadingPlaces(true);
-    const { places: result } = await searchNearbyPlaces(lat, lng, category, radius);
-    const sorted = sortByDistance(result, lat, lng);
-    if (sorted.length === 0) { loadDemo(lat, lng); return; }
-    setPlaces(sorted);
-    applyFilter(sorted, category);
-    setLoadingPlaces(false);
-  }
+    const RADII = [radius, 5000, 8000, 12000, 20000];
 
-  function loadDemo(lat, lng) {
-    const demo = sortByDistance(getDemoPlaces(lat, lng), lat, lng);
-    setIsDemo(true);
-    setPlaces(demo);
-    applyFilter(demo, 'all');
+    for (const r of RADII) {
+      setSearchRadius(r);
+      const { places: result } = await searchNearbyPlaces(lat, lng, category, r);
+      const sorted = sortByDistance(result, lat, lng);
+      if (sorted.length > 0) {
+        setPlaces(sorted);
+        applyFilter(sorted, category);
+        setLoadingPlaces(false);
+        return;
+      }
+    }
+    // Nada encontrado em nenhum raio — mostra estado vazio real
+    setPlaces([]);
+    applyFilter([], category);
     setLoadingPlaces(false);
   }
 
@@ -171,15 +174,11 @@ export default function PetMapScreen() {
         <Text style={styles.bannerEmoji}>🗺️</Text>
         <Text style={styles.bannerTitle}>Mapa Pet</Text>
         <Text style={styles.bannerSub}>
-          {isDemo
-            ? 'Locais de demonstração — instale o app no celular para dados reais'
-            : 'Locais pet próximos de você via OpenStreetMap'}
+          Locais pet próximos via OpenStreetMap — dados reais, sem custo
         </Text>
-        {!isDemo && (
-          <View style={styles.bannerBadge}>
-            <Text style={styles.bannerBadgeText}>✅ Dados reais · gratuito</Text>
-          </View>
-        )}
+        <View style={styles.bannerBadge}>
+          <Text style={styles.bannerBadgeText}>✅ OpenStreetMap · gratuito</Text>
+        </View>
       </LinearGradient>
 
       {/* ── Filtros ── */}
@@ -217,7 +216,9 @@ export default function PetMapScreen() {
       {/* ── Lista de locais ── */}
       <View style={styles.listHeader}>
         <Text style={styles.listTitle}>
-          {loadingPlaces ? 'Buscando...' : `${filtered.length} local${filtered.length !== 1 ? 'is' : ''} encontrado${filtered.length !== 1 ? 's' : ''}${isDemo ? ' (demo)' : ''}`}
+          {loadingPlaces
+            ? `Buscando em raio de ${Math.round(searchRadius / 1000)} km...`
+            : `${filtered.length} local${filtered.length !== 1 ? 'is' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
         </Text>
         {loadingPlaces && <ActivityIndicator size="small" color="#0EA5E9" />}
       </View>

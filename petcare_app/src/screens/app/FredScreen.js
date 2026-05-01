@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -49,6 +50,7 @@ function TypingIndicator() {
 }
 
 export default function FredScreen() {
+  const navigation = useNavigation();
   const [messages, setMessages] = useState([
     {
       id: '0',
@@ -119,6 +121,9 @@ export default function FredScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
         <View style={styles.headerAvatar}>
           <Image source={FRED_IMG} style={{ width: 36, height: 36 }} resizeMode="contain" />
         </View>
@@ -197,6 +202,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
+  backBtn: { padding: 4, marginRight: 4 },
+  backIcon: { fontSize: 22, color: '#0EA5E9' },
   headerAvatar: {
     width: 46, height: 46, borderRadius: 23, backgroundColor: '#FEF9C3',
     justifyContent: 'center', alignItems: 'center',

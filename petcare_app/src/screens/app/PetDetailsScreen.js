@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  ActivityIndicator, Alert, RefreshControl, Image, TextInput,
+  ActivityIndicator, Alert, RefreshControl, Image, TextInput, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import WeightChart from '../../components/WeightChart';
@@ -161,6 +162,9 @@ export default function PetDetailsScreen({ route, navigation }) {
   const [healthForm, setHealthForm] = useState({ health_notes: '', medications: '' });
   const [savingHealth, setSavingHealth] = useState(false);
 
+  // Foto do pet
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
   const fetchData = async () => {
     const [petRes, vacRes, expRes, wRes, medRes, profileRes] = await Promise.all([
       supabase.from('pets').select('*').eq('id', petId).single(),
@@ -198,6 +202,46 @@ export default function PetDetailsScreen({ route, navigation }) {
 
   const handleRegisterVaccine = (vaccineName) => {
     navigation.navigate('AddVaccine', { petId, petName: pet.name, petSpecies: pet.species, prefillName: vaccineName });
+  };
+
+  const handlePhotoUpload = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Precisamos de acesso à sua galeria para adicionar a foto do pet.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled) return;
+
+    setUploadingPhoto(true);
+    try {
+      const uri = result.assets[0].uri;
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const filePath = `${user.id}/${petId}.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('pet-photos')
+        .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('pet-photos')
+        .getPublicUrl(filePath);
+
+      await supabase.from('pets').update({ photo_url: publicUrl }).eq('id', petId);
+      setPet(prev => ({ ...prev, photo_url: publicUrl }));
+    } catch (e) {
+      Alert.alert('Erro', 'Não foi possível fazer upload da foto. Verifique se criou o bucket pet-photos no Supabase.');
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const openHealthEdit = () => {
@@ -268,11 +312,22 @@ export default function PetDetailsScreen({ route, navigation }) {
         <View style={styles.petCard}>
           {/* Avatar + info */}
           <View style={styles.petTop}>
-            <LinearGradient colors={['#DBEAFE', '#EFF6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.petAvatarWrap}>
-              {speciesImg
-                ? <Image source={speciesImg} style={{ width: 44, height: 44 }} resizeMode="contain" />
-                : <Text style={styles.petEmoji}>🐾</Text>}
-            </LinearGradient>
+            <TouchableOpacity onPress={handlePhotoUpload} style={styles.petAvatarBtn} activeOpacity={0.85}>
+              {pet.photo_url ? (
+                <Image source={{ uri: pet.photo_url }} style={styles.petPhoto} />
+              ) : (
+                <LinearGradient colors={['#DBEAFE', '#EFF6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.petAvatarWrap}>
+                  {speciesImg
+                    ? <Image source={speciesImg} style={{ width: 44, height: 44 }} resizeMode="contain" />
+                    : <Text style={styles.petEmoji}>🐾</Text>}
+                </LinearGradient>
+              )}
+              <View style={styles.photoOverlay}>
+                {uploadingPhoto
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.photoOverlayText}>📷</Text>}
+              </View>
+            </TouchableOpacity>
             <View style={styles.petMeta}>
               <Text style={styles.petName}>{pet.name}</Text>
               <View style={styles.petTagsRow}>
@@ -485,7 +540,11 @@ const styles = StyleSheet.create({
   petCard: { backgroundColor: '#fff', margin: 16, borderRadius: 22, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 14, elevation: 4, overflow: 'hidden' },
 
   petTop: { flexDirection: 'row', padding: 16, alignItems: 'center', gap: 14 },
+  petAvatarBtn: { position: 'relative', width: 70, height: 70 },
   petAvatarWrap: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#BFDBFE' },
+  petPhoto: { width: 70, height: 70, borderRadius: 35, borderWidth: 2, borderColor: '#BFDBFE' },
+  photoOverlay: { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: '#0EA5E9', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  photoOverlayText: { fontSize: 12 },
   petEmoji: { fontSize: 38 },
   petMeta: { flex: 1 },
   petName: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 6 },

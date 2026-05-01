@@ -170,15 +170,19 @@ export default function DashboardScreen({ navigation }) {
               onPress={() => navigation.navigate('PetDetails', { petId: pet.id })}
               activeOpacity={0.82}
             >
-              <LinearGradient
-                colors={['#DBEAFE', '#EFF6FF']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.petEmojiWrap}
-              >
-                {SPECIES_IMAGES[pet.species]
-                  ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 36, height: 36 }} resizeMode="contain" />
-                  : <Text style={{ fontSize: 30 }}>🐾</Text>}
-              </LinearGradient>
+              {pet.photo_url ? (
+                <Image source={{ uri: pet.photo_url }} style={styles.petPhotoCircle} />
+              ) : (
+                <LinearGradient
+                  colors={['#DBEAFE', '#EFF6FF']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={styles.petEmojiWrap}
+                >
+                  {SPECIES_IMAGES[pet.species]
+                    ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 36, height: 36 }} resizeMode="contain" />
+                    : <Text style={{ fontSize: 30 }}>🐾</Text>}
+                </LinearGradient>
+              )}
 
               <View style={styles.petInfo}>
                 <Text style={styles.petName}>{pet.name}</Text>
@@ -286,6 +290,7 @@ const styles = StyleSheet.create({
     width: 54, height: 54, borderRadius: 27,
     justifyContent: 'center', alignItems: 'center', marginRight: 14,
   },
+  petPhotoCircle: { width: 54, height: 54, borderRadius: 27, marginRight: 14, borderWidth: 2, borderColor: '#BFDBFE' },
   petInfo: { flex: 1 },
   petName: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   petBreed: { fontSize: 13, color: '#64748B', marginTop: 2 },

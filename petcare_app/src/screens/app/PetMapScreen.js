@@ -17,7 +17,6 @@ import {
 import {
   searchNearbyPlaces,
   getPlaceDetails,
-  getDemoPlaces,
   CATEGORY_CONFIG,
 } from '../../services/placesService';
 import { checkProximityNotification } from '../../services/fredNotificationService';
@@ -91,7 +90,6 @@ export default function PetMapScreen() {
   const [savedIds,       setSavedIds]       = useState([]);
   const [showList,       setShowList]       = useState(false);
   const [fredMsg,        setFredMsg]        = useState(null);
-  const [isDemo,         setIsDemo]         = useState(false);
 
   const mapRef = useRef(null);
 
@@ -115,35 +113,28 @@ export default function PetMapScreen() {
     }
     // Fallback: São Paulo
     setUserLocation(SAOPAULO_DEFAULT);
-    loadDemo(SAOPAULO_DEFAULT.latitude, SAOPAULO_DEFAULT.longitude);
+    loadPlaces(SAOPAULO_DEFAULT.latitude, SAOPAULO_DEFAULT.longitude, 'all', 3000);
   }
 
+  // Busca progressiva: aumenta o raio até encontrar resultados
   async function loadPlaces(lat, lng, category, radius) {
     setLoadingPlaces(true);
-    const { places: result } = await searchNearbyPlaces(lat, lng, category, radius);
-    const sorted = sortByDistance(result, lat, lng);
+    const RADII = [radius, 5000, 8000, 12000, 20000];
 
-    if (sorted.length === 0 && radius < 10000) {
-      const nr = radius * 2;
-      setSearchRadius(nr);
-      const { places: r2 } = await searchNearbyPlaces(lat, lng, category, nr);
-      const s2 = sortByDistance(r2, lat, lng);
-      if (s2.length === 0) { loadDemo(lat, lng); return; }
-      setPlaces(s2); applyFilter(s2, category);
-      setLoadingPlaces(false);
-    } else if (sorted.length === 0) {
-      loadDemo(lat, lng);
-    } else {
-      setPlaces(sorted); applyFilter(sorted, category);
-      setLoadingPlaces(false);
-      const notif = await checkProximityNotification(lat, lng, sorted, false);
-      if (notif) setFredMsg(notif.message);
+    for (const r of RADII) {
+      setSearchRadius(r);
+      const { places: result } = await searchNearbyPlaces(lat, lng, category, r);
+      const sorted = sortByDistance(result, lat, lng);
+      if (sorted.length > 0) {
+        setPlaces(sorted); applyFilter(sorted, category);
+        setLoadingPlaces(false);
+        const notif = await checkProximityNotification(lat, lng, sorted, false);
+        if (notif) setFredMsg(notif.message);
+        return;
+      }
     }
-  }
-
-  function loadDemo(lat, lng) {
-    const demo = sortByDistance(getDemoPlaces(lat, lng), lat, lng);
-    setIsDemo(true); setPlaces(demo); applyFilter(demo, 'all');
+    // Nada encontrado — estado vazio real
+    setPlaces([]); applyFilter([], category);
     setLoadingPlaces(false);
   }
 
@@ -157,7 +148,7 @@ export default function PetMapScreen() {
 
   const handlePlacePress = useCallback(async (place) => {
     setSelectedPlace(place); setShowList(false);
-    if (!place.phone && !isDemo && !place.id?.startsWith('osm_') && HAS_GOOGLE_KEY) {
+    if (!place.phone && !place.id?.startsWith('osm_') && HAS_GOOGLE_KEY) {
       const details = await getPlaceDetails(place.id);
       if (details) {
         const updated = { ...place, ...details };
@@ -169,7 +160,7 @@ export default function PetMapScreen() {
       latitude: place.latitude, longitude: place.longitude,
       latitudeDelta: 0.01, longitudeDelta: 0.01,
     }, 400);
-  }, [isDemo]);
+  }, []);
 
   const handleSave = useCallback(async (place) => {
     setSavedIds(prev => {
@@ -217,7 +208,7 @@ export default function PetMapScreen() {
           onPress={() => {
             setLocStatus(LOCATION_STATUS.UNAVAILABLE);
             setUserLocation(SAOPAULO_DEFAULT);
-            loadDemo(SAOPAULO_DEFAULT.latitude, SAOPAULO_DEFAULT.longitude);
+            loadPlaces(SAOPAULO_DEFAULT.latitude, SAOPAULO_DEFAULT.longitude, 'all', 3000);
           }}
         >
           <Text style={[styles.permBtnText, { color: 'rgba(255,255,255,0.85)' }]}>Continuar sem localização</Text>
@@ -307,7 +298,7 @@ export default function PetMapScreen() {
         <View style={styles.listPanel}>
           <View style={styles.listHeader}>
             <Text style={styles.listTitle}>
-              {filtered.length} local{filtered.length !== 1 ? 'is' : ''}{isDemo ? ' (demo)' : ''}
+              {filtered.length} local{filtered.length !== 1 ? 'is' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
             </Text>
             <TouchableOpacity onPress={() => setShowList(false)}>
               <Text style={styles.listClose}>✕</Text>

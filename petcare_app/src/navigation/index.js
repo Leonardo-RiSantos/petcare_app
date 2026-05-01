@@ -36,6 +36,7 @@ const TAB_ICONS = {
   home:     require('../../assets/icon_home.png'),
   expenses: require('../../assets/icon_expenses.png'),
   profile:  require('../../assets/icon_profile.png'),
+  map:      require('../../assets/icon_map.png'),
 };
 
 const NAV_OPTS = {
@@ -87,7 +88,7 @@ function TutorTabs() {
           options={{
             headerTitle: 'Mapa Pet', tabBarLabel: 'Mapa',
             tabBarIcon: ({ focused }) => (
-              <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.45 }}>🗺️</Text>
+              <Image source={TAB_ICONS.map} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" />
             ),
           }}
         />
@@ -113,7 +114,7 @@ function TutorStack() {
   return (
     <Stack.Navigator screenOptions={NAV_OPTS}>
       <Stack.Screen name="Main" component={TutorTabs} options={{ headerShown: false }} />
-      <Stack.Screen name="Fred" component={FredScreen} options={{ title: 'Fred 🐱' }} />
+      <Stack.Screen name="Fred" component={FredScreen} options={{ headerShown: false }} />
       <Stack.Screen name="AddPet" component={AddPetScreen} options={{ title: 'Novo Pet' }} />
       <Stack.Screen name="PetDetails" component={PetDetailsScreen} options={{ title: 'Detalhes do Pet' }} />
       <Stack.Screen name="AddVaccine" component={AddVaccineScreen} options={{ title: 'Nova Vacina' }} />
@@ -167,7 +168,7 @@ function VetStack() {
   return (
     <Stack.Navigator screenOptions={VET_NAV_OPTS}>
       <Stack.Screen name="VetMain" component={VetTabs} options={{ headerShown: false }} />
-      <Stack.Screen name="Fred" component={FredScreen} options={{ title: 'Fred 🐱' }} />
+      <Stack.Screen name="Fred" component={FredScreen} options={{ headerShown: false }} />
       <Stack.Screen name="VetPatient" component={VetPatientScreen} options={{ title: 'Paciente' }} />
       <Stack.Screen name="AddMedicalRecord" component={AddMedicalRecordScreen} options={{ title: 'Novo Registro' }} />
     </Stack.Navigator>

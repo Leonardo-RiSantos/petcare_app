@@ -1,12 +1,20 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert, RefreshControl, Platform,
+  TextInput, ActivityIndicator, Alert, RefreshControl, Platform, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+
+const ICONS = {
+  email:   require('../../../assets/icon_email.png'),
+  profile: require('../../../assets/icon_profile.png'),
+  fred:    require('../../../assets/icon_fred.png'),
+  app:     require('../../../assets/icon_app.png'),
+  logout:  require('../../../assets/icon_logout.png'),
+};
 
 function Section({ title, children }) {
   return (
@@ -17,7 +25,7 @@ function Section({ title, children }) {
   );
 }
 
-function Row({ emoji, label, value, onPress, danger }) {
+function Row({ icon, label, value, onPress, danger }) {
   return (
     <TouchableOpacity
       style={styles.row}
@@ -25,7 +33,7 @@ function Row({ emoji, label, value, onPress, danger }) {
       disabled={!onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <Text style={styles.rowEmoji}>{emoji}</Text>
+      <Image source={icon} style={[styles.rowIcon, danger && { tintColor: '#EF4444' }]} resizeMode="contain" />
       <Text style={[styles.rowLabel, danger && styles.rowDanger]}>{label}</Text>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
       {onPress ? <Text style={styles.rowArrow}>›</Text> : null}
@@ -156,7 +164,7 @@ export default function ProfileScreen() {
         ) : (
           <TouchableOpacity onPress={() => setEditingName(true)} style={styles.nameRow}>
             <Text style={styles.name}>{profile.full_name || 'Adicionar nome'}</Text>
-            <Text style={styles.editIcon}>✏️</Text>
+            <Image source={ICONS.profile} style={styles.editIcon} resizeMode="contain" />
           </TouchableOpacity>
         )}
 
@@ -191,22 +199,17 @@ export default function ProfileScreen() {
       {/* Seções */}
       <View style={styles.sections}>
         <Section title="Conta">
-          <Row emoji="📧" label="Email" value={user?.email} />
-          <Row
-            emoji="👤"
-            label="Nome"
-            value={profile.full_name || '—'}
-            onPress={() => setEditingName(true)}
-          />
+          <Row icon={ICONS.email}   label="Email" value={user?.email} />
+          <Row icon={ICONS.profile} label="Nome"  value={profile.full_name || '—'} onPress={() => setEditingName(true)} />
         </Section>
 
         <Section title="App">
-          <Row emoji="🐱" label="Fred — Assistente IA" value="Ativo" />
-          <Row emoji="📱" label="Versão" value="1.0.0" />
+          <Row icon={ICONS.fred} label="Fred — Assistente IA" value="Ativo" />
+          <Row icon={ICONS.app}  label="Versão" value="1.0.0" />
         </Section>
 
         <Section title="Sessão">
-          <Row emoji="🚪" label="Sair da conta" onPress={handleSignOut} danger />
+          <Row icon={ICONS.logout} label="Sair da conta" onPress={handleSignOut} danger />
         </Section>
       </View>
 
@@ -236,7 +239,7 @@ const styles = StyleSheet.create({
 
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   name: { fontSize: 22, fontWeight: '700', color: '#fff' },
-  editIcon: { fontSize: 16 },
+  editIcon: { width: 20, height: 20, opacity: 0.6 },
   email: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
 
   nameEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, width: '100%' },
@@ -289,7 +292,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: '#F8FAFC',
   },
-  rowEmoji: { fontSize: 20, marginRight: 12, width: 28, textAlign: 'center' },
+  rowIcon: { width: 26, height: 26, marginRight: 12 },
   rowLabel: { flex: 1, fontSize: 15, color: '#1E293B' },
   rowDanger: { color: '#EF4444' },
   rowValue: { fontSize: 13, color: '#94A3B8', maxWidth: 160, textAlign: 'right' },
