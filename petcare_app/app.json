@@ -12,15 +12,45 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O PetCare+ usa sua localização para encontrar locais úteis próximos para seus pets.",
+          "locationAlwaysPermission": "O PetCare+ usa sua localização em segundo plano para avisar quando estiver perto de locais pet."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0EA5E9",
+          "sounds": []
+        }
+      ]
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": ""
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "O PetCare+ usa sua localização para encontrar locais úteis próximos para seus pets.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O PetCare+ usa sua localização para avisar quando estiver perto de locais pet."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

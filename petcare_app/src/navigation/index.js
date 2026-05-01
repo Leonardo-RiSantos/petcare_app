@@ -23,6 +23,7 @@ import ProfileScreen from '../screens/app/ProfileScreen';
 import MedicalHistoryScreen from '../screens/app/MedicalHistoryScreen';
 import AddMedicalRecordScreen from '../screens/app/AddMedicalRecordScreen';
 import PetQRScreen from '../screens/app/PetQRScreen';
+import PetMapScreen from '../screens/app/PetMapScreen';
 
 // Vet
 import VetDashboardScreen from '../screens/vet/VetDashboardScreen';
@@ -77,6 +78,16 @@ function TutorTabs() {
             headerTitle: 'Gastos', tabBarLabel: 'Gastos',
             tabBarIcon: ({ focused }) => (
               <Image source={TAB_ICONS.expenses} style={{ width: 26, height: 26, opacity: focused ? 1 : 0.4 }} resizeMode="contain" />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="MapTab"
+          component={PetMapScreen}
+          options={{
+            headerTitle: 'Mapa Pet', tabBarLabel: 'Mapa',
+            tabBarIcon: ({ focused }) => (
+              <Text style={{ fontSize: 24, opacity: focused ? 1 : 0.45 }}>🗺️</Text>
             ),
           }}
         />
