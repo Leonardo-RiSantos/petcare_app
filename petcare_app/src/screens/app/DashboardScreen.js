@@ -17,7 +17,6 @@ const SPECIES_IMAGES = {
   Réptil:   require('../../../assets/pet_reptil.png'),
 };
 
-// Ícones de status de vacina
 const ICON_CHECK   = require('../../../assets/icon_check.png');
 const ICON_WARNING = require('../../../assets/icon_warning.png');
 const ICON_LATE    = require('../../../assets/icon_late.png');
@@ -34,6 +33,17 @@ function calcVaccineStatus(vaccines) {
     else ok++;
   });
   return { ok, warning, late };
+}
+
+// Pílula compacta de status de vacina
+function StatusPill({ icon, count, label, bg, labelColor }) {
+  return (
+    <View style={[styles.pill, { backgroundColor: bg }]}>
+      <Image source={icon} style={styles.pillIcon} resizeMode="contain" />
+      <Text style={[styles.pillCount, { color: labelColor }]}>{count}</Text>
+      <Text style={[styles.pillLabel, { color: labelColor }]}>{label}</Text>
+    </View>
+  );
 }
 
 export default function DashboardScreen({ navigation }) {
@@ -59,10 +69,11 @@ export default function DashboardScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => { fetchData(); }, []));
   const onRefresh = () => { setRefreshing(true); fetchData(); };
-  const { ok, warning, late } = calcVaccineStatus(vaccines);
 
-  // Primeiro nome do usuário
+  const { ok, warning, late } = calcVaccineStatus(vaccines);
   const firstName = profile?.full_name?.split(' ')[0] || 'tutor';
+  const hasAlerts = late > 0 || warning > 0;
+  const allGood = vaccines.length > 0 && !hasAlerts;
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
@@ -74,62 +85,58 @@ export default function DashboardScreen({ navigation }) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0EA5E9" />}
     >
-      {/* Hero */}
+      {/* ── Hero slim ── */}
       <LinearGradient
         colors={['#0284C7', '#0EA5E9', '#38BDF8']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={styles.hero}
       >
-        <View style={[styles.bubble, { width: 150, height: 150, top: -45, right: -30 }]} />
-        <View style={[styles.bubble, { width: 85, height: 85, top: 25, right: 75 }]} />
-        <View style={[styles.bubble, { width: 55, height: 55, bottom: -15, left: 45 }]} />
+        <View style={[styles.bubble, { width: 180, height: 180, top: -60, right: -40 }]} />
+        <View style={[styles.bubble, { width: 90,  height: 90,  bottom: -25, left: 30 }]} />
 
         <Text style={styles.heroTitle}>Olá, {firstName}! 🐾</Text>
-        <Text style={styles.heroSub}>Tudo organizado em um só lugar</Text>
-
-        <View style={styles.heroPanel}>
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatNum}>{pets.length}</Text>
-            <Text style={styles.heroStatLabel}>Pets</Text>
-          </View>
-          <View style={styles.heroDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatNum}>{vaccines.length}</Text>
-            <Text style={styles.heroStatLabel}>Vacinas</Text>
-          </View>
-          <View style={styles.heroDivider} />
-          <View style={styles.heroStat}>
-            <Text style={[styles.heroStatNum, (late + warning) > 0 && styles.heroStatAlert]}>
-              {late + warning}
-            </Text>
-            <Text style={styles.heroStatLabel}>Alertas</Text>
-          </View>
-        </View>
+        <Text style={styles.heroSub}>
+          {pets.length === 0
+            ? 'Adicione seu primeiro pet para começar'
+            : allGood
+              ? `${pets.length} pet${pets.length > 1 ? 's' : ''} com vacinas em dia ✓`
+              : hasAlerts
+                ? `${pets.length} pet${pets.length > 1 ? 's' : ''} · ${late + warning} alerta${(late + warning) > 1 ? 's' : ''} de vacina`
+                : `${pets.length} pet${pets.length > 1 ? 's' : ''} cadastrado${pets.length > 1 ? 's' : ''}`}
+        </Text>
       </LinearGradient>
 
-      {/* Status das Vacinas */}
-      <Text style={styles.sectionTitle}>Status das Vacinas</Text>
-      <View style={styles.vaccineRow}>
-        <View style={[styles.vaccineCard, styles.vaccineOk]}>
-          <Image source={ICON_CHECK} style={styles.vaccineCardIcon} resizeMode="contain" />
-          <Text style={styles.vaccineCount}>{ok}</Text>
-          <Text style={styles.vaccineLabel}>Em dia</Text>
+      {/* ── Status compacto ── */}
+      {vaccines.length > 0 && (
+        <View style={styles.statusRow}>
+          <StatusPill icon={ICON_CHECK}   count={ok}      label="Em dia"    bg="#F0FDF4" labelColor="#16A34A" />
+          <StatusPill icon={ICON_WARNING} count={warning} label="Vencendo"  bg="#FFFBEB" labelColor="#D97706" />
+          <StatusPill icon={ICON_LATE}    count={late}    label="Atrasadas" bg="#FFF1F2" labelColor="#DC2626" />
         </View>
-        <View style={[styles.vaccineCard, styles.vaccineWarn]}>
-          <Image source={ICON_WARNING} style={styles.vaccineCardIcon} resizeMode="contain" />
-          <Text style={styles.vaccineCount}>{warning}</Text>
-          <Text style={styles.vaccineLabel}>Vencendo</Text>
-        </View>
-        <View style={[styles.vaccineCard, styles.vaccineLate]}>
-          <Image source={ICON_LATE} style={styles.vaccineCardIcon} resizeMode="contain" />
-          <Text style={styles.vaccineCount}>{late}</Text>
-          <Text style={styles.vaccineLabel}>Atrasadas</Text>
-        </View>
-      </View>
+      )}
 
-      {/* Meus Pets */}
+      {/* ── Banner de alerta (só aparece quando há problema) ── */}
+      {hasAlerts && (
+        <View style={[styles.alertBanner, late > 0 ? styles.alertBannerRed : styles.alertBannerYellow]}>
+          <Image
+            source={late > 0 ? ICON_LATE : ICON_WARNING}
+            style={styles.alertBannerIcon}
+            resizeMode="contain"
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.alertBannerTitle}>
+              {late > 0
+                ? `${late} vacina${late > 1 ? 's' : ''} em atraso!`
+                : `${warning} vacina${warning > 1 ? 's' : ''} vencendo em breve`}
+            </Text>
+            <Text style={styles.alertBannerSub}>Veja os pets abaixo e registre o reforço</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── Meus Pets ── */}
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>Meus Pets</Text>
+        <Text style={styles.sectionTitle}>Meus Pets</Text>
         <TouchableOpacity style={styles.addBtnWrap} onPress={() => navigation.navigate('AddPet')}>
           <LinearGradient
             colors={['#0EA5E9', '#38BDF8']}
@@ -163,16 +170,22 @@ export default function DashboardScreen({ navigation }) {
               onPress={() => navigation.navigate('PetDetails', { petId: pet.id })}
               activeOpacity={0.82}
             >
-              <LinearGradient colors={['#DBEAFE', '#EFF6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.petEmojiWrap}>
+              <LinearGradient
+                colors={['#DBEAFE', '#EFF6FF']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.petEmojiWrap}
+              >
                 {SPECIES_IMAGES[pet.species]
                   ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 36, height: 36 }} resizeMode="contain" />
                   : <Text style={{ fontSize: 30 }}>🐾</Text>}
               </LinearGradient>
+
               <View style={styles.petInfo}>
                 <Text style={styles.petName}>{pet.name}</Text>
                 <Text style={styles.petBreed}>{pet.species}{pet.breed ? ` · ${pet.breed}` : ''}</Text>
                 {pet.weight_kg ? <Text style={styles.petWeight}>⚖️ {pet.weight_kg} kg</Text> : null}
               </View>
+
               <View style={styles.petRight}>
                 {s.late > 0 ? (
                   <View style={[styles.badge, styles.badgeLate]}>
@@ -203,50 +216,83 @@ export default function DashboardScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
-  content: { paddingBottom: 40 },
+  content: { paddingBottom: 100 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  hero: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 28, overflow: 'hidden' },
-  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
-  heroTitle: { fontSize: 27, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.85)', marginBottom: 20 },
-  heroPanel: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 18, padding: 16 },
-  heroStat: { flex: 1, alignItems: 'center' },
-  heroStatNum: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  heroStatAlert: { color: '#FEF08A' },
-  heroStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  heroDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 2 },
+  // Hero — mais slim, sem painel de stats
+  hero: {
+    paddingHorizontal: 24, paddingTop: 26, paddingBottom: 30,
+    overflow: 'hidden',
+  },
+  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' },
+  heroTitle: { fontSize: 26, fontWeight: '800', color: '#fff', marginBottom: 6 },
+  heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.88)', lineHeight: 20 },
 
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 12, paddingHorizontal: 20, marginTop: 22 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 22, marginBottom: 12 },
+  // Barra de status compacta — substitui os 3 cards grandes
+  statusRow: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 20, marginTop: 14,
+  },
+  pill: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10,
+  },
+  pillIcon: { width: 20, height: 20 },
+  pillCount: { fontSize: 16, fontWeight: '800' },
+  pillLabel: { fontSize: 11, fontWeight: '600', flex: 1 },
+
+  // Banner de alerta contextual
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 20, marginTop: 12,
+    borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14,
+  },
+  alertBannerRed: { backgroundColor: '#FFF1F2', borderWidth: 1.5, borderColor: '#FECDD3' },
+  alertBannerYellow: { backgroundColor: '#FFFBEB', borderWidth: 1.5, borderColor: '#FDE68A' },
+  alertBannerIcon: { width: 32, height: 32 },
+  alertBannerTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
+  alertBannerSub: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+
+  // Pets
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, marginTop: 22, marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1E293B' },
   addBtnWrap: { borderRadius: 22, overflow: 'hidden' },
   addBtnGrad: { paddingHorizontal: 16, paddingVertical: 8 },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  vaccineRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20 },
-  vaccineCard: { flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1 },
-  vaccineOk: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
-  vaccineWarn: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
-  vaccineLate: { backgroundColor: '#FFF1F2', borderColor: '#FECDD3' },
-  vaccineCardIcon: { width: 32, height: 32, marginBottom: 6 },
-  vaccineCount: { fontSize: 22, fontWeight: '800', color: '#1E293B' },
-  vaccineLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
-
-  emptyState: { backgroundColor: '#fff', borderRadius: 22, padding: 36, alignItems: 'center', marginHorizontal: 20, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: '#EFF6FF' },
+  emptyState: {
+    backgroundColor: '#fff', borderRadius: 22, padding: 36, alignItems: 'center',
+    marginHorizontal: 20, shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: '#EFF6FF',
+  },
   emptyEmoji: { fontSize: 52, marginBottom: 14 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: '#1E293B', marginBottom: 6 },
   emptySub: { fontSize: 13, color: '#94A3B8', textAlign: 'center', marginBottom: 24 },
   emptyBtn: { borderRadius: 16, paddingHorizontal: 30, paddingVertical: 14 },
   emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  petCard: { backgroundColor: '#fff', borderRadius: 20, padding: 14, marginHorizontal: 20, marginBottom: 10, flexDirection: 'row', alignItems: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#EFF6FF' },
-  petEmojiWrap: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  petCard: {
+    backgroundColor: '#fff', borderRadius: 20, padding: 14,
+    marginHorizontal: 20, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center',
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: '#EFF6FF',
+  },
+  petEmojiWrap: {
+    width: 54, height: 54, borderRadius: 27,
+    justifyContent: 'center', alignItems: 'center', marginRight: 14,
+  },
   petInfo: { flex: 1 },
   petName: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   petBreed: { fontSize: 13, color: '#64748B', marginTop: 2 },
   petWeight: { fontSize: 12, color: '#94A3B8', marginTop: 3 },
   petRight: { alignItems: 'flex-end', gap: 6 },
   petArrow: { fontSize: 20, color: '#BAE6FD' },
+
   badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   badgeOk: { backgroundColor: '#DCFCE7' },
   badgeWarn: { backgroundColor: '#FEF9C3' },
