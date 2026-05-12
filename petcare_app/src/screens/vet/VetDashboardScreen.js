@@ -357,59 +357,71 @@ export default function VetDashboardScreen({ navigation }) {
 
     {/* Modal vincular por código */}
     <Modal visible={showCodeModal} transparent animationType="slide" onRequestClose={() => { setShowCodeModal(false); setCodeError(''); setCodeSuccess(''); }}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => { setShowCodeModal(false); setCodeError(''); setCodeSuccess(''); }}>
-        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 48 }}>
-            <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 20 }} />
-            <Text style={{ fontSize: 19, fontWeight: '800', color: '#1E293B', marginBottom: 6 }}>Vincular pet por código</Text>
-            <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 20, lineHeight: 18 }}>
-              O tutor encontra o código no app PetCare+, na tela de detalhes do pet. Insira os primeiros 8 caracteres do código.
-            </Text>
+      {/* Overlay: View simples sem TouchableOpacity para não interceptar eventos dos filhos */}
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 48 }}>
 
-            {/* Feedback inline — erro (acima do input para sempre ficar visível) */}
-            {codeError ? (
-              <View style={{ backgroundColor: '#FFF1F2', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' }}>
-                <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>✕ {codeError}</Text>
-              </View>
-            ) : null}
-
-            {/* Feedback inline — sucesso */}
-            {codeSuccess ? (
-              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#BBF7D0' }}>
-                <Text style={{ color: '#16A34A', fontSize: 14, fontWeight: '800' }}>✓ {codeSuccess}</Text>
-              </View>
-            ) : null}
-
-            <View style={{ backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1.5, borderColor: codeError ? '#FECACA' : '#E0F2FE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 16 }}>
-              <Text style={{ fontSize: 15, color: '#94A3B8', marginRight: 8 }}>#</Text>
-              <TextInput
-                style={{ flex: 1, fontSize: 20, fontWeight: '800', color: '#1E293B', paddingVertical: 16, letterSpacing: 2 }}
-                value={petCode}
-                onChangeText={v => { setPetCode(v.toUpperCase()); setCodeError(''); setCodeSuccess(''); }}
-                placeholder="Ex: A3F1B2C4"
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={12}
-              />
-              {petCode.length > 0 && (
-                <TouchableOpacity onPress={() => { setPetCode(''); setCodeError(''); }} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-                  <Text style={{ fontSize: 16, color: '#94A3B8' }}>✕</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <TouchableOpacity style={{ borderRadius: 16, overflow: 'hidden' }} onPress={handleLinkByCode} disabled={codeLoading || !petCode.trim()}>
-              <LinearGradient colors={['#7C3AED', '#A78BFA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', opacity: petCode.trim() ? 1 : 0.45 }}>
-                {codeLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Vincular paciente</Text>}
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setShowCodeModal(false); setCodeError(''); setCodeSuccess(''); }} style={{ alignItems: 'center', marginTop: 16 }}>
-              <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancelar</Text>
+          {/* Header com botão fechar */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ flex: 1, fontSize: 19, fontWeight: '800', color: '#1E293B' }}>Vincular pet por código</Text>
+            <TouchableOpacity onPress={() => { setShowCodeModal(false); setCodeError(''); setCodeSuccess(''); }} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+              <Text style={{ fontSize: 20, color: '#94A3B8', fontWeight: '300' }}>✕</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+
+          <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 20, lineHeight: 18 }}>
+            O tutor encontra o código na tela de detalhes do pet no PetCare+. Cole ou digite os primeiros caracteres abaixo.
+          </Text>
+
+          {/* Feedback — erro */}
+          {codeError ? (
+            <View style={{ backgroundColor: '#FFF1F2', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' }}>
+              <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>✕ {codeError}</Text>
+            </View>
+          ) : null}
+
+          {/* Feedback — sucesso */}
+          {codeSuccess ? (
+            <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#BBF7D0' }}>
+              <Text style={{ color: '#16A34A', fontSize: 14, fontWeight: '800' }}>✓ {codeSuccess}</Text>
+            </View>
+          ) : null}
+
+          <View style={{ backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1.5, borderColor: codeError ? '#FECACA' : '#E0F2FE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 20 }}>
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginRight: 8 }}>#</Text>
+            <TextInput
+              style={{ flex: 1, fontSize: 20, fontWeight: '800', color: '#1E293B', paddingVertical: 16, letterSpacing: 2 }}
+              value={petCode}
+              onChangeText={v => { setPetCode(v.toUpperCase()); setCodeError(''); setCodeSuccess(''); }}
+              placeholder="Ex: A3F1B2C4"
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={12}
+            />
+            {petCode.length > 0 && (
+              <TouchableOpacity onPress={() => { setPetCode(''); setCodeError(''); }} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                <Text style={{ fontSize: 16, color: '#94A3B8' }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={{ borderRadius: 16, overflow: 'hidden' }}
+            onPress={handleLinkByCode}
+            disabled={codeLoading || !petCode.trim()}
+            activeOpacity={0.85}
+          >
+            <LinearGradient colors={['#7C3AED', '#A78BFA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', opacity: petCode.trim() ? 1 : 0.45 }}>
+              {codeLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Vincular paciente</Text>}
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => { setShowCodeModal(false); setCodeError(''); setCodeSuccess(''); }} style={{ alignItems: 'center', marginTop: 14 }}>
+            <Text style={{ color: '#94A3B8', fontWeight: '600' }}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
     </View>
   );
