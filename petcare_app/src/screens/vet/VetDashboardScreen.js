@@ -147,7 +147,7 @@ export default function VetDashboardScreen({ navigation }) {
     } else {
       ({ error: linkError } = await supabase
         .from('pet_vet_links')
-        .insert({ pet_id: pet.id, vet_id: user.id, status: 'active' }));
+        .insert({ pet_id: pet.id, vet_id: user.id, tutor_id: pet.user_id, status: 'active' }));
     }
 
     setCodeLoading(false);
