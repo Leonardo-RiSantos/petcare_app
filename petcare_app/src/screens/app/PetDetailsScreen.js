@@ -534,25 +534,8 @@ export default function PetDetailsScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{pet.name}</Text>
         <View style={styles.headerActions}>
-          {isOwner && (
-            <TouchableOpacity style={styles.headerBtn} onPress={async () => {
-              const token = pet?.share_token;
-              if (!token) return;
-              const url = `https://petcare-plus-nu.vercel.app/pet/${token}`;
-              try {
-                if (Platform.OS === 'web') {
-                  await navigator.clipboard.writeText(url);
-                  alert('Link copiado! Qualquer pessoa com o link pode ver o prontuário.');
-                } else {
-                  await Share.share({ message: `Prontuário de ${pet.name}: ${url}`, url });
-                }
-              } catch (_) {}
-            }}>
-              <Image source={require('../../../assets/icon_doc.png')} style={{ width: 26, height: 26 }} resizeMode="contain" />
-            </TouchableOpacity>
-          )}
           <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('PetQR', { petId })}>
-            <Image source={require('../../../assets/icon_doc.png')} style={{ width: 22, height: 22, opacity: 0.6 }} resizeMode="contain" />
+            <Image source={require('../../../assets/icon_doc.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
           </TouchableOpacity>
           {isOwner && (
             <TouchableOpacity style={styles.headerBtn} onPress={handleDelete}>
@@ -667,7 +650,7 @@ export default function PetDetailsScreen({ route, navigation }) {
               <Text style={styles.qrActionText}>RG Digital</Text>
             </TouchableOpacity>
 
-            {isOwner && canUseVets && (
+            {isOwner && (
               <TouchableOpacity
                 style={[styles.codeBadge, copiedCode && styles.codeBadgeCopied]}
                 onPress={() => {
@@ -912,6 +895,29 @@ export default function PetDetailsScreen({ route, navigation }) {
 
           return (
             <View style={styles.tabContent}>
+
+              {/* ── Prontuário compartilhável ── */}
+              {isOwner && pet?.share_token && (
+                <TouchableOpacity
+                  style={styles.prontuarioShareBtn}
+                  onPress={async () => {
+                    const url = `https://petcare-plus-nu.vercel.app/pet/${pet.share_token}`;
+                    try {
+                      if (Platform.OS === 'web') {
+                        await navigator.clipboard.writeText(url);
+                        alert('Link copiado! Qualquer pessoa com o link pode ver o prontuário de ' + pet.name + '.');
+                      } else {
+                        await Share.share({ message: `Prontuário de ${pet.name}: ${url}`, url });
+                      }
+                    } catch (_) {}
+                  }}
+                  activeOpacity={0.82}
+                >
+                  <Image source={require('../../../assets/icon_doc.png')} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                  <Text style={styles.prontuarioShareText}>Compartilhar prontuário</Text>
+                  <Text style={styles.prontuarioShareArrow}>›</Text>
+                </TouchableOpacity>
+              )}
 
               {/* ── Veterinários vinculados ── */}
               <View style={styles.vetSectionHeader}>
@@ -1819,6 +1825,9 @@ const styles = StyleSheet.create({
   vetLinkMiniIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' },
   vetLinkMiniName: { fontSize: 13, fontWeight: '800', color: '#1E293B' },
   vetLinkMiniCrm: { fontSize: 11, color: '#0EA5E9', fontWeight: '600', marginTop: 1 },
+  prontuarioShareBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#BFDBFE' },
+  prontuarioShareText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#0EA5E9' },
+  prontuarioShareArrow: { fontSize: 18, color: '#0EA5E9', fontWeight: '700' },
   vetLinksEmpty: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#E2E8F0' },
   vetLinksEmptyText: { fontSize: 12, color: '#94A3B8', textAlign: 'center' },
 
