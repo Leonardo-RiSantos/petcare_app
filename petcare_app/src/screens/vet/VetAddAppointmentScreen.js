@@ -68,10 +68,10 @@ export default function VetAddAppointmentScreen({ route, navigation }) {
     }
 
     setLoading(true);
-    const { error } = await supabase.from('appointments').insert({
+    const { error } = await supabase.from('vet_schedule').insert({
       pet_id:         petId,
       vet_id:         user.id,
-      tutor_id:       tutorId,
+      patient_name:   petName || null,
       type:           form.type,
       scheduled_date: dateStorage,
       scheduled_time: form.time || null,
