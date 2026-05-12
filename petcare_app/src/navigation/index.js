@@ -267,8 +267,8 @@ function VetStack() {
       <Stack.Screen name="VetAddPatient"           component={VetAddPatientScreen}          options={{ title: 'Adicionar Paciente' }} />
       <Stack.Screen name="AddMedicalRecord"        component={AddMedicalRecordScreen}       options={{ title: 'Novo Registro' }} />
       <Stack.Screen name="VetAddAppointment"       component={VetAddAppointmentScreen}      options={{ title: 'Agendar Consulta' }} />
-      <Stack.Screen name="VetCalendar"             component={VetCalendarScreen}            options={{ title: 'Agenda', headerShown: false }} />
-      <Stack.Screen name="VetFinancial"            component={VetFinancialScreen}           options={{ title: 'Financeiro', headerShown: false }} />
+      <Stack.Screen name="VetCalendar"             component={VetCalendarScreen}            options={{ headerShown: false }} />
+      <Stack.Screen name="VetFinancial"            component={VetFinancialScreen}           options={{ title: 'Financeiro' }} />
       <Stack.Screen name="VetConsultation"         component={VetConsultationScreen}        options={{ title: 'Prontuário' }} />
       <Stack.Screen name="VetAddUnlinkedPatient"   component={VetAddUnlinkedPatientScreen}  options={{ title: 'Novo Paciente' }} />
       <Stack.Screen name="VetUnlinkedPatient"      component={VetUnlinkedPatientScreen}     options={{ title: 'Paciente da Clínica' }} />

@@ -40,7 +40,8 @@ function getMonthDays(year, month) {
   return days;
 }
 
-export default function VetCalendarScreen({ navigation }) {
+export default function VetCalendarScreen({ navigation, route }) {
+  const canGoBack = navigation.canGoBack();
   const { user } = useAuth();
   const today = new Date();
   const [pivot, setPivot]           = useState(today);
@@ -198,6 +199,11 @@ export default function VetCalendarScreen({ navigation }) {
     <View style={styles.container}>
       {/* Toolbar de navegação */}
       <LinearGradient colors={['#0284C7', '#0EA5E9']} style={styles.toolbar}>
+        {canGoBack ? (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.navBtn, { marginRight: 4 }]}>
+            <Text style={styles.navTxt}>←</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity onPress={prev} style={styles.navBtn}><Text style={styles.navTxt}>‹</Text></TouchableOpacity>
         <TouchableOpacity onPress={() => setPivot(new Date())} style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.periodLabel}>{periodLabel()}</Text>
