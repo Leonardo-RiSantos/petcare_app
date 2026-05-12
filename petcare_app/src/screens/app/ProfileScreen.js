@@ -53,6 +53,7 @@ export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState({ full_name: '', phone: '', address: '', avatar_url: '' });
   const [vetData, setVetData] = useState({ specialty: '', clinic_name: '', clinic_address: '' });
   const [stats, setStats] = useState({ pets: 0, vaccines: 0, totalExpenses: 0 });
+  const [vetStats, setVetStats] = useState({ patients: 0, consultations: 0, monthRevenue: 0 });
   const [loading, setLoading] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -76,40 +77,59 @@ export default function ProfileScreen({ navigation }) {
   const [uploadingSignature, setUploadingSignature] = useState(false);
 
   const fetchData = async () => {
-    const queries = [
+    const today = new Date().toISOString().slice(0, 10);
+    const firstOfMonth = `${today.slice(0, 7)}-01`;
+
+    const baseQueries = [
       supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('pets').select('id', { count: 'exact' }).eq('user_id', user.id),
-      supabase.from('vaccines').select('id', { count: 'exact' }).eq('user_id', user.id),
-      supabase.from('expenses').select('amount').eq('user_id', user.id),
     ];
-    if (isVet) queries.push(
-      supabase.from('vet_profiles').select('specialty, clinic_name, clinic_address, chat_enabled, booking_enabled, booking_slug, signature_url').eq('id', user.id).single()
-    );
 
-    const results = await Promise.all(queries);
-    const [profileRes, petsRes, vaccinesRes, expensesRes, vetRes] = results;
+    if (isVet) {
+      // Stats do veterinário: pacientes + consultas + receita do mês
+      baseQueries.push(
+        supabase.from('vet_profiles').select('specialty, clinic_name, clinic_address, chat_enabled, booking_enabled, booking_slug, signature_url').eq('id', user.id).single(),
+        supabase.from('pet_vet_links').select('id', { count: 'exact' }).eq('vet_id', user.id).eq('status', 'active'),
+        supabase.from('vet_unlinked_patients').select('id', { count: 'exact' }).eq('vet_id', user.id),
+        supabase.from('vet_consultations').select('id', { count: 'exact' }).eq('vet_id', user.id),
+        supabase.from('vet_billing').select('amount').eq('vet_id', user.id).eq('status', 'paid').eq('type', 'income').gte('created_at', firstOfMonth),
+      );
+    } else {
+      // Stats do tutor: pets + vacinas + gastos
+      baseQueries.push(
+        supabase.from('pets').select('id', { count: 'exact' }).eq('user_id', user.id),
+        supabase.from('vaccines').select('id', { count: 'exact' }).eq('user_id', user.id),
+        supabase.from('expenses').select('amount').eq('user_id', user.id),
+      );
+    }
 
+    const results = await Promise.all(baseQueries);
+
+    const profileRes = results[0];
     if (profileRes.data) {
       setProfile(profileRes.data);
       setNameInput(profileRes.data.full_name || '');
       setPhoneInput(profileRes.data.phone || '');
       setAddressInput(profileRes.data.address || '');
     }
-    if (vetRes?.data) {
-      const vd = { specialty: vetRes.data.specialty || '', clinic_name: vetRes.data.clinic_name || '', clinic_address: vetRes.data.clinic_address || '' };
-      setVetData(vd);
-      setVetInputs(vd);
-      const vs = { chat_enabled: !!vetRes.data.chat_enabled, booking_enabled: !!vetRes.data.booking_enabled, booking_slug: vetRes.data.booking_slug || '', signature_url: vetRes.data.signature_url || '' };
-      setVetSettings(vs);
-      setBookingSlugInput(vs.booking_slug);
-    }
 
-    const total = (expensesRes.data ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    setStats({
-      pets: petsRes.count ?? 0,
-      vaccines: vaccinesRes.count ?? 0,
-      totalExpenses: total,
-    });
+    if (isVet) {
+      const [, vetRes, linkedRes, avulsosRes, consultRes, billingRes] = results;
+      if (vetRes?.data) {
+        const vd = { specialty: vetRes.data.specialty || '', clinic_name: vetRes.data.clinic_name || '', clinic_address: vetRes.data.clinic_address || '' };
+        setVetData(vd);
+        setVetInputs(vd);
+        const vs = { chat_enabled: !!vetRes.data.chat_enabled, booking_enabled: !!vetRes.data.booking_enabled, booking_slug: vetRes.data.booking_slug || '', signature_url: vetRes.data.signature_url || '' };
+        setVetSettings(vs);
+        setBookingSlugInput(vs.booking_slug);
+      }
+      const totalPatients = (linkedRes.count ?? 0) + (avulsosRes.count ?? 0);
+      const monthRevenue = (billingRes.data ?? []).reduce((s, b) => s + Number(b.amount), 0);
+      setVetStats({ patients: totalPatients, consultations: consultRes.count ?? 0, monthRevenue });
+    } else {
+      const [, petsRes, vaccinesRes, expensesRes] = results;
+      const total = (expensesRes.data ?? []).reduce((s, e) => s + Number(e.amount), 0);
+      setStats({ pets: petsRes.count ?? 0, vaccines: vaccinesRes.count ?? 0, totalExpenses: total });
+    }
 
     setLoading(false);
     setRefreshing(false);
@@ -319,27 +339,55 @@ export default function ProfileScreen({ navigation }) {
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
-            <Text style={styles.statEmoji}>🐾</Text>
-          </LinearGradient>
-          <Text style={styles.statValue}>{stats.pets}</Text>
-          <Text style={styles.statLabel}>Pets</Text>
-        </View>
-        <View style={styles.statCard}>
-          <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
-            <Text style={styles.statEmoji}>💉</Text>
-          </LinearGradient>
-          <Text style={styles.statValue}>{stats.vaccines}</Text>
-          <Text style={styles.statLabel}>Vacinas</Text>
-        </View>
-        <View style={styles.statCard}>
-          <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
-            <Image source={ICONS.expenses} style={{ width: 24, height: 24 }} resizeMode="contain" />
-          </LinearGradient>
-          <Text style={[styles.statValue, { fontSize: 13 }]}>{formatCurrency(stats.totalExpenses)}</Text>
-          <Text style={styles.statLabel}>Total gasto</Text>
-        </View>
+        {isVet ? (
+          <>
+            <View style={styles.statCard}>
+              <LinearGradient colors={['#EDE9FE', '#F5F3FF']} style={styles.statIconWrap}>
+                <Text style={styles.statEmoji}>🐾</Text>
+              </LinearGradient>
+              <Text style={styles.statValue}>{vetStats.patients}</Text>
+              <Text style={styles.statLabel}>Pacientes</Text>
+            </View>
+            <View style={styles.statCard}>
+              <LinearGradient colors={['#EDE9FE', '#F5F3FF']} style={styles.statIconWrap}>
+                <Image source={ICONS.medical} style={{ width: 24, height: 24 }} resizeMode="contain" />
+              </LinearGradient>
+              <Text style={styles.statValue}>{vetStats.consultations}</Text>
+              <Text style={styles.statLabel}>Consultas</Text>
+            </View>
+            <View style={styles.statCard}>
+              <LinearGradient colors={['#EDE9FE', '#F5F3FF']} style={styles.statIconWrap}>
+                <Image source={ICONS.expenses} style={{ width: 24, height: 24 }} resizeMode="contain" />
+              </LinearGradient>
+              <Text style={[styles.statValue, { fontSize: 13 }]}>{formatCurrency(vetStats.monthRevenue)}</Text>
+              <Text style={styles.statLabel}>Mês</Text>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.statCard}>
+              <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
+                <Text style={styles.statEmoji}>🐾</Text>
+              </LinearGradient>
+              <Text style={styles.statValue}>{stats.pets}</Text>
+              <Text style={styles.statLabel}>Pets</Text>
+            </View>
+            <View style={styles.statCard}>
+              <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
+                <Text style={styles.statEmoji}>💉</Text>
+              </LinearGradient>
+              <Text style={styles.statValue}>{stats.vaccines}</Text>
+              <Text style={styles.statLabel}>Vacinas</Text>
+            </View>
+            <View style={styles.statCard}>
+              <LinearGradient colors={['#EFF6FF', '#DBEAFE']} style={styles.statIconWrap}>
+                <Image source={ICONS.expenses} style={{ width: 24, height: 24 }} resizeMode="contain" />
+              </LinearGradient>
+              <Text style={[styles.statValue, { fontSize: 13 }]}>{formatCurrency(stats.totalExpenses)}</Text>
+              <Text style={styles.statLabel}>Total gasto</Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Seções */}
@@ -555,7 +603,7 @@ export default function ProfileScreen({ navigation }) {
             <Text style={{ fontSize: 20, color: '#BAE6FD' }}>›</Text>
           </TouchableOpacity>
           )}
-          {isPremium && (
+          {isPremium && !isVet && (
             <Row
               icon={ICONS.profile}
               label="Compartilhar acesso"
