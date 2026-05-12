@@ -366,35 +366,41 @@ export default function VetDashboardScreen({ navigation }) {
               O tutor encontra o código no app PetCare+, na tela de detalhes do pet. Insira os primeiros 8 caracteres do código.
             </Text>
 
-            <View style={{ backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1.5, borderColor: codeError ? '#FECACA' : '#E0F2FE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 }}>
-              <Text style={{ fontSize: 15, color: '#94A3B8', marginRight: 8 }}>#</Text>
-              <TextInput
-                style={{ flex: 1, fontSize: 20, fontWeight: '800', color: '#1E293B', paddingVertical: 16, letterSpacing: 2 }}
-                value={petCode}
-                onChangeText={v => { setPetCode(v.replace(/[^a-fA-F0-9]/g, '').toUpperCase()); setCodeError(''); setCodeSuccess(''); }}
-                placeholder="Ex: A3F1B2C4"
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="characters"
-                maxLength={8}
-              />
-            </View>
-
-            {/* Feedback inline — erro */}
+            {/* Feedback inline — erro (acima do input para sempre ficar visível) */}
             {codeError ? (
-              <View style={{ backgroundColor: '#FFF1F2', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#FECACA' }}>
+              <View style={{ backgroundColor: '#FFF1F2', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' }}>
                 <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>✕ {codeError}</Text>
               </View>
             ) : null}
 
             {/* Feedback inline — sucesso */}
             {codeSuccess ? (
-              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#BBF7D0' }}>
+              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#BBF7D0' }}>
                 <Text style={{ color: '#16A34A', fontSize: 14, fontWeight: '800' }}>✓ {codeSuccess}</Text>
               </View>
             ) : null}
 
-            <TouchableOpacity style={{ borderRadius: 16, overflow: 'hidden' }} onPress={handleLinkByCode} disabled={codeLoading || petCode.trim().length < 8}>
-              <LinearGradient colors={['#7C3AED', '#A78BFA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', opacity: petCode.trim().length === 8 ? 1 : 0.45 }}>
+            <View style={{ backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1.5, borderColor: codeError ? '#FECACA' : '#E0F2FE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 16 }}>
+              <Text style={{ fontSize: 15, color: '#94A3B8', marginRight: 8 }}>#</Text>
+              <TextInput
+                style={{ flex: 1, fontSize: 20, fontWeight: '800', color: '#1E293B', paddingVertical: 16, letterSpacing: 2 }}
+                value={petCode}
+                onChangeText={v => { setPetCode(v.toUpperCase()); setCodeError(''); setCodeSuccess(''); }}
+                placeholder="Ex: A3F1B2C4"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={12}
+              />
+              {petCode.length > 0 && (
+                <TouchableOpacity onPress={() => { setPetCode(''); setCodeError(''); }} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                  <Text style={{ fontSize: 16, color: '#94A3B8' }}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity style={{ borderRadius: 16, overflow: 'hidden' }} onPress={handleLinkByCode} disabled={codeLoading || !petCode.trim()}>
+              <LinearGradient colors={['#7C3AED', '#A78BFA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', opacity: petCode.trim() ? 1 : 0.45 }}>
                 {codeLoading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Vincular paciente</Text>}
               </LinearGradient>
             </TouchableOpacity>
