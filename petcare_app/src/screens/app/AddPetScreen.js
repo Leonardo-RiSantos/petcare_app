@@ -6,8 +6,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import DatePickerInput from '../../components/DatePickerInput';
 
-const SPECIES = ['Cachorro', 'Gato', 'Ave', 'Coelho', 'Hamster', 'Réptil', 'Outro'];
+const SPECIES = ['Cachorro', 'Gato', 'Ave', 'Coelho', 'Hamster', 'Réptil', 'Peixe', 'Outro'];
 const SEX = ['Macho', 'Fêmea'];
 
 const SPECIES_IMAGES = {
@@ -17,6 +18,7 @@ const SPECIES_IMAGES = {
   Coelho:   require('../../../assets/pet_coelho.png'),
   Hamster:  require('../../../assets/pet_hamster.png'),
   Réptil:   require('../../../assets/pet_reptil.png'),
+  Peixe:    require('../../../assets/pet_peixe.png'),
 };
 
 const PERSONALITY_OPTIONS = [
@@ -36,6 +38,7 @@ const coatLabel = (species) => {
   if (['Cachorro', 'Gato', 'Coelho', 'Hamster'].includes(species)) return 'Cor da pelagem';
   if (species === 'Ave') return 'Cor da plumagem';
   if (species === 'Réptil') return 'Cor das escamas / pele';
+  if (species === 'Peixe')  return 'Cor das escamas';
   return 'Cor / aparência';
 };
 
@@ -192,13 +195,11 @@ export default function AddPetScreen({ navigation }) {
 
       {/* Data de nascimento */}
       <Text style={styles.label}>Data de nascimento</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="DD/MM/AAAA"
-        placeholderTextColor="#9CA3AF"
+      <DatePickerInput
         value={form.birth_date}
         onChangeText={v => set('birth_date', v)}
-        keyboardType="numeric"
+        label="Data de nascimento"
+        isBirthDate
       />
 
       {/* Peso */}
@@ -209,7 +210,7 @@ export default function AddPetScreen({ navigation }) {
         placeholderTextColor="#9CA3AF"
         value={form.weight_kg}
         onChangeText={v => set('weight_kg', v)}
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
       />
 
       {/* Cor da pelagem / plumagem / escamas */}

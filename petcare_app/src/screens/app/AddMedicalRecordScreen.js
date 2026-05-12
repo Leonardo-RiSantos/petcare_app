@@ -1,33 +1,56 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { useLayout } from '../../hooks/useLayout';
+import DatePickerInput from '../../components/DatePickerInput';
+
+const ICON_MEDICAL  = require('../../../assets/icon_medical.png');
+const ICON_WARNING  = require('../../../assets/icon_warning.png');
+const ICON_MEDICINE = require('../../../assets/icon_medicine.png');
+const ICON_DOC      = require('../../../assets/icon_doc.png');
 
 const TYPES = [
-  { key: 'consulta',    label: 'Consulta',    emoji: '🏥' },
-  { key: 'cirurgia',    label: 'Cirurgia',    emoji: '⚕️' },
-  { key: 'exame',       label: 'Exame',       emoji: '🔬' },
-  { key: 'alergia',     label: 'Alergia',     emoji: '⚠️' },
-  { key: 'medicamento', label: 'Medicamento', emoji: '💊' },
-  { key: 'outro',       label: 'Outro',       emoji: '📋' },
+  { key: 'consulta',    label: 'Consulta',    icon: ICON_MEDICAL  },
+  { key: 'cirurgia',    label: 'Cirurgia',    icon: ICON_MEDICAL  },
+  { key: 'exame',       label: 'Exame',       icon: ICON_MEDICAL  },
+  { key: 'alergia',     label: 'Alergia',     icon: ICON_WARNING  },
+  { key: 'medicamento', label: 'Medicamento', icon: ICON_MEDICINE },
+  { key: 'outro',       label: 'Outro',       icon: ICON_DOC      },
 ];
 
+const todayDDMMYYYY = () => {
+  const n = new Date();
+  return `${String(n.getDate()).padStart(2,'0')}/${String(n.getMonth()+1).padStart(2,'0')}/${n.getFullYear()}`;
+};
+const fmtDate = (text) => {
+  const d = text.replace(/\D/g,'').slice(0,8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0,2)}/${d.slice(2)}`;
+  return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`;
+};
+const toStorage = (ddmmyyyy) => {
+  if (!ddmmyyyy) return null;
+  const m = ddmmyyyy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+};
+
 export default function AddMedicalRecordScreen({ route, navigation }) {
-  const { petId, petName, isVet = false } = route.params;
+  const { petId, petName, isVet = false, vetName = '' } = route.params || {};
+  const { isDesktop } = useLayout();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     type: '',
     title: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayDDMMYYYY(),
     veterinarian: '',
     diagnosis: '',
     prescription: '',
-    next_appointment: '',
   });
 
   const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -38,6 +61,9 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
       return;
     }
 
+    const dateStorage = toStorage(form.date);
+    if (!dateStorage) { Alert.alert('Data inválida', 'Use o formato DD/MM/AAAA.'); return; }
+
     setLoading(true);
     const { error } = await supabase.from('medical_records').insert({
       pet_id: petId,
@@ -47,11 +73,10 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
       type: form.type,
       title: form.title,
       description: form.description || null,
-      date: form.date,
-      veterinarian: form.veterinarian || null,
+      date: dateStorage,
+      veterinarian: isVet ? vetName : (form.veterinarian || null),
       diagnosis: form.diagnosis || null,
       prescription: form.prescription || null,
-      next_appointment: form.next_appointment || null,
     });
     setLoading(false);
 
@@ -62,7 +87,7 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
   const isVetMode = isVet;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, isDesktop && styles.contentDesktop]}>
       <Text style={styles.petName}>Registro para {petName}</Text>
 
       {/* Tipo */}
@@ -74,7 +99,7 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
             style={[styles.typeCard, form.type === t.key && styles.typeCardActive]}
             onPress={() => set('type', t.key)}
           >
-            <Text style={styles.typeEmoji}>{t.emoji}</Text>
+            <Image source={t.icon} style={styles.typeIcon} resizeMode="contain" />
             <Text style={[styles.typeLabel, form.type === t.key && styles.typeLabelActive]}>
               {t.label}
             </Text>
@@ -94,24 +119,25 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
 
       {/* Data */}
       <Text style={styles.label}>Data *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="AAAA-MM-DD"
-        placeholderTextColor="#9CA3AF"
+      <DatePickerInput
         value={form.date}
         onChangeText={v => set('date', v)}
-        keyboardType="numeric"
+        label="Data do registro"
       />
 
-      {/* Veterinário */}
-      <Text style={styles.label}>Veterinário</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Nome do veterinário"
-        placeholderTextColor="#9CA3AF"
-        value={form.veterinarian}
-        onChangeText={v => set('veterinarian', v)}
-      />
+      {/* Veterinário — só aparece no modo tutor */}
+      {!isVet && (
+        <>
+          <Text style={styles.label}>Veterinário</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nome do veterinário"
+            placeholderTextColor="#9CA3AF"
+            value={form.veterinarian}
+            onChangeText={v => set('veterinarian', v)}
+          />
+        </>
+      )}
 
       {/* Descrição */}
       <Text style={styles.label}>Observações</Text>
@@ -127,8 +153,9 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
       {/* Campos extras para modo vet */}
       {isVetMode && (
         <>
-          <View style={styles.vetBanner}>
-            <Text style={styles.vetBannerText}>👨‍⚕️ Campos profissionais</Text>
+          <View style={[styles.vetBanner, { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]}>
+            <Image source={ICON_MEDICAL} style={{ width: 18, height: 18 }} resizeMode="contain" />
+            <Text style={styles.vetBannerText}>Campos profissionais</Text>
           </View>
 
           <Text style={styles.label}>Diagnóstico</Text>
@@ -151,15 +178,9 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
             multiline numberOfLines={3}
           />
 
-          <Text style={styles.label}>Próxima consulta</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="AAAA-MM-DD"
-            placeholderTextColor="#9CA3AF"
-            value={form.next_appointment}
-            onChangeText={v => set('next_appointment', v)}
-            keyboardType="numeric"
-          />
+          <View style={styles.agendaBanner}>
+            <Text style={styles.agendaBannerText}>📅 Para marcar consultas, use o botão "Agendar" na tela do paciente</Text>
+          </View>
         </>
       )}
 
@@ -173,6 +194,7 @@ export default function AddMedicalRecordScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F9FF' },
   content: { padding: 20, paddingBottom: 40 },
+  contentDesktop: { maxWidth: 720, alignSelf: 'center', width: '100%', paddingHorizontal: 32 },
   petName: { fontSize: 18, fontWeight: '700', color: '#1E293B', marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 16 },
   input: {
@@ -189,11 +211,17 @@ const styles = StyleSheet.create({
   typeEmoji: { fontSize: 24, marginBottom: 4 },
   typeLabel: { fontSize: 12, color: '#64748B', fontWeight: '500', textAlign: 'center' },
   typeLabelActive: { color: '#0EA5E9', fontWeight: '700' },
+  typeIcon: { width: 24, height: 24, marginBottom: 4 },
   vetBanner: {
     backgroundColor: '#EFF6FF', borderRadius: 10, padding: 12,
     marginTop: 20, borderWidth: 1, borderColor: '#BAE6FD',
   },
   vetBannerText: { color: '#0EA5E9', fontWeight: '700', fontSize: 14, textAlign: 'center' },
+  agendaBanner: {
+    backgroundColor: '#F5F3FF', borderRadius: 10, padding: 12,
+    marginTop: 16, borderWidth: 1, borderColor: '#DDD6FE',
+  },
+  agendaBannerText: { color: '#7C3AED', fontWeight: '600', fontSize: 13, textAlign: 'center' },
   button: {
     backgroundColor: '#0EA5E9', borderRadius: 12, paddingVertical: 16,
     alignItems: 'center', marginTop: 32,

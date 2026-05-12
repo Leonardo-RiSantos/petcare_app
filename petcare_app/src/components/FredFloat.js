@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, Image, Animated, StyleSheet, Platform,
 } from 'react-native';
@@ -6,6 +6,8 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { usePlan } from '../hooks/usePlan';
+import UpgradeModal from './UpgradeModal';
 
 const safeGet = async (key) => {
   if (Platform.OS === 'web') { try { return localStorage.getItem(key); } catch { return null; } }
@@ -27,12 +29,15 @@ const GENERICOS = [
 export default function FredFloat() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { canUseFred } = usePlan();
   const [msg, setMsg] = useState(null);
+  const [upgradeModal, setUpgradeModal] = useState(false);
 
   const fadeAnim   = useRef(new Animated.Value(0)).current;
   const scaleAnim  = useRef(new Animated.Value(0.8)).current;
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const btnScale   = useRef(new Animated.Value(0)).current;
+  const mounted    = useRef(true);
 
   useEffect(() => {
     // Fred aparece com efeito pop
@@ -47,11 +52,15 @@ export default function FredFloat() {
         Animated.timing(bounceAnim, { toValue: 0,  duration: 200, useNativeDriver: true }),
       ]).start();
     };
+    mounted.current = true;
     doBounce();
     const interval = setInterval(doBounce, 9000);
 
     checkPrimeiraVez();
-    return () => clearInterval(interval);
+    return () => {
+      mounted.current = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const checkPrimeiraVez = async () => {
@@ -67,14 +76,66 @@ export default function FredFloat() {
     try {
       const hoje = new Date();
       const em7 = new Date(); em7.setDate(hoje.getDate() + 7);
+      const em15 = new Date(); em15.setDate(hoje.getDate() + 15);
 
-      const [{ data: vaccines }, { data: pets }] = await Promise.all([
+      const [{ data: vaccines }, { data: pets }, { data: appointments }] = await Promise.all([
         supabase.from('vaccines').select('name, next_dose_date, pet_id').eq('user_id', user.id).not('next_dose_date', 'is', null),
-        supabase.from('pets').select('id, name').eq('user_id', user.id),
+        supabase.from('pets').select('id, name, birth_date').eq('user_id', user.id),
+        supabase.from('appointments').select('scheduled_date, scheduled_time, type, notes, pet_id').eq('tutor_id', user.id).eq('status', 'scheduled'),
       ]);
 
       const petNome = (petId) => pets?.find(p => p.id === petId)?.name || 'Seu pet';
 
+      // ── Verifica aniversários (prioridade máxima) ──
+      for (const pet of (pets || [])) {
+        if (!pet.birth_date) continue;
+        const birth = new Date(pet.birth_date);
+        const nextBd = new Date(hoje.getFullYear(), birth.getMonth(), birth.getDate());
+        if (nextBd < hoje) nextBd.setFullYear(hoje.getFullYear() + 1);
+        const dias = Math.ceil((nextBd - hoje) / (1000 * 60 * 60 * 24));
+
+        const bdKey = `fred_bd_${pet.id}_${nextBd.getFullYear()}`;
+        const jaViu = await safeGet(bdKey);
+        if (jaViu) continue;
+
+        let bdMsg = null;
+        if (dias === 0)       bdMsg = `🎂 Hoje é aniversário de ${pet.name}! Parabéns ao seu melhor amigo!`;
+        else if (dias === 1)  bdMsg = `🎈 Amanhã é aniversário de ${pet.name}! Já preparou a surpresa?`;
+        else if (dias === 7)  bdMsg = `🐾 Faltam 7 dias para o aniversário de ${pet.name}!`;
+        else if (dias === 15) bdMsg = `🎉 Faltam 15 dias para o aniversário de ${pet.name}! Começa a planejar!`;
+
+        if (bdMsg) {
+          await safeSet(bdKey, '1');
+          mostrarBolinha(bdMsg);
+          return;
+        }
+      }
+
+      // ── Verifica agendamentos (prioridade alta) ──
+      for (const appt of (appointments || [])) {
+        const apptDate = new Date(appt.scheduled_date);
+        const dias = Math.ceil((apptDate - hoje) / (1000 * 60 * 60 * 24));
+        const petNomeAppt = (pets || []).find(p => p.id === appt.pet_id)?.name || 'Seu pet';
+        const tipoLabel = { consulta: 'consulta', cirurgia: 'cirurgia', exame: 'exame', retorno: 'retorno', outro: 'consulta' }[appt.type] || 'consulta';
+
+        const apptKey = `fred_appt_${appt.pet_id}_${appt.scheduled_date}`;
+        const jaViu = await safeGet(apptKey);
+        if (jaViu) continue;
+
+        let apptMsg = null;
+        if (dias === 0)       apptMsg = `🏥 Hoje é o dia! ${petNomeAppt} tem ${tipoLabel} marcada${appt.scheduled_time ? ` às ${appt.scheduled_time}` : ''}!`;
+        else if (dias === 1)  apptMsg = `📅 Amanhã ${petNomeAppt} tem ${tipoLabel} com o veterinário!`;
+        else if (dias <= 3)   apptMsg = `📅 Em ${dias} dias: ${tipoLabel} de ${petNomeAppt}. Prepare-se!`;
+        else if (dias === 7)  apptMsg = `🗓 Faltam 7 dias para a ${tipoLabel} de ${petNomeAppt}.`;
+
+        if (apptMsg) {
+          await safeSet(apptKey, '1');
+          mostrarBolinha(apptMsg);
+          return;
+        }
+      }
+
+      // ── Verifica vacinas ──
       const atrasadas = (vaccines || []).filter(v => new Date(v.next_dose_date) < hoje);
       const proximas  = (vaccines || []).filter(v => {
         const d = new Date(v.next_dose_date);
@@ -100,6 +161,7 @@ export default function FredFloat() {
   };
 
   const mostrarBolinha = (texto) => {
+    if (!mounted.current) return;
     setMsg(texto);
     Animated.parallel([
       Animated.timing(fadeAnim,  { toValue: 1, duration: 300, useNativeDriver: true }),
@@ -117,15 +179,15 @@ export default function FredFloat() {
 
   return (
     <View style={styles.container} pointerEvents="box-none">
+      <UpgradeModal visible={upgradeModal} onClose={() => setUpgradeModal(false)} feature="fred" />
 
-      {/* Bolinha de fala */}
-      {msg && (
+      {/* Bolinha de fala — só aparece no premium */}
+      {canUseFred && msg && (
         <Animated.View style={[styles.bubble, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
           <TouchableOpacity onPress={esconderBolinha} activeOpacity={0.95}>
             <Text style={styles.bubbleText}>{msg}</Text>
             <Text style={styles.bubbleDismiss}>toque para fechar</Text>
           </TouchableOpacity>
-          {/* Rabo da bolinha */}
           <View style={styles.tail} />
           <View style={styles.tailInner} />
         </Animated.View>
@@ -134,15 +196,20 @@ export default function FredFloat() {
       {/* Botão Fred */}
       <Animated.View style={{ transform: [{ translateY: bounceAnim }, { scale: btnScale }] }}>
         <TouchableOpacity
-          style={styles.fredBtn}
-          onPress={() => navigation.navigate('Fred')}
+          style={[styles.fredBtn, !canUseFred && styles.fredBtnLocked]}
+          onPress={() => canUseFred ? navigation.navigate('Fred') : setUpgradeModal(true)}
           activeOpacity={0.88}
         >
           <Image
             source={require('../../assets/icon_fred.png')}
-            style={{ width: 54, height: 54 }}
+            style={{ width: 54, height: 54, opacity: canUseFred ? 1 : 0.45 }}
             resizeMode="contain"
           />
+          {!canUseFred && (
+            <View style={styles.fredLockBadge}>
+              <Image source={require('../../assets/icon_crown.png')} style={{ width: 13, height: 13 }} resizeMode="contain" />
+            </View>
+          )}
         </TouchableOpacity>
       </Animated.View>
 
@@ -163,6 +230,17 @@ const styles = StyleSheet.create({
     shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.35, shadowRadius: 14, elevation: 10,
     borderWidth: 2.5, borderColor: '#FEF3C7',
+    position: 'relative',
+  },
+  fredBtnLocked: {
+    borderColor: '#E2E8F0',
+    shadowColor: '#94A3B8', shadowOpacity: 0.15,
+  },
+  fredLockBadge: {
+    position: 'absolute', top: 2, right: 2,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#FEF9C3', borderWidth: 1.5, borderColor: '#FDE68A',
+    justifyContent: 'center', alignItems: 'center',
   },
 
   bubble: {

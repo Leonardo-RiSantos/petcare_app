@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, Platform,
   ScrollView, Image, Alert,
 } from 'react-native';
-import Svg, { Path, G } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import Svg, { Path } from 'react-native-svg';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { logger } from '../../utils/logger';
+
+// Necessário para fechar o browser após o redirect OAuth no mobile
+WebBrowser.maybeCompleteAuthSession();
+
+const LOGO = require('../../../assets/logo_background.png');
 
 function GoogleLogo({ size = 20 }) {
   return (
@@ -18,12 +28,26 @@ function GoogleLogo({ size = 20 }) {
   );
 }
 
-function AppleLogo({ size = 20 }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" fill="#000" />
-    </Svg>
-  );
+// Extrai tokens do URL de callback OAuth
+function parseOAuthCallback(url) {
+  try {
+    // Tenta hash fragment (fluxo implícito)
+    const hash = url.split('#')[1];
+    if (hash) {
+      const params = new URLSearchParams(hash);
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      if (access_token) return { access_token, refresh_token };
+    }
+    // Tenta query string (fluxo PKCE)
+    const query = url.split('?')[1]?.split('#')[0];
+    if (query) {
+      const params = new URLSearchParams(query);
+      const code = params.get('code');
+      if (code) return { code };
+    }
+  } catch (_) {}
+  return null;
 }
 
 export default function LoginScreen({ navigation }) {
@@ -31,9 +55,18 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const passwordRef = useRef(null);
   const [showPassword, setShowPassword] = useState(false);
   const [erro, setErro] = useState('');
 
+  // URL de redirect para OAuth nativo — usa o scheme do app
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'petcare',
+    path: 'auth/callback',
+  });
+
+  // ── Login com email/senha ──────────────────────────────────────────────────
   const handleLogin = async () => {
     setErro('');
     if (!email || !password) { setErro('Preencha email e senha.'); return; }
@@ -48,157 +81,299 @@ export default function LoginScreen({ navigation }) {
     }
   };
 
-  const handleSocialLogin = (provider) => {
-    Alert.alert(`${provider}`, 'Login social disponível em breve! Use email e senha por enquanto.');
+  // ── Login com Google ───────────────────────────────────────────────────────
+  const handleGoogleLogin = async () => {
+    setErro('');
+    setLoadingGoogle(true);
+    try {
+      if (Platform.OS === 'web') {
+        // No web o Supabase redireciona direto pelo browser
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin },
+        });
+        if (error) throw error;
+        return; // o browser redireciona, não há mais código aqui
+      }
+
+      // Nativo: abre browser embutido, captura o redirect
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUri,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) throw error;
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+
+      if (result.type === 'success' && result.url) {
+        const parsed = parseOAuthCallback(result.url);
+        if (parsed?.access_token) {
+          const { error: sessionErr } = await supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token ?? '',
+          });
+          if (sessionErr) throw sessionErr;
+        } else if (parsed?.code) {
+          const { error: codeErr } = await supabase.auth.exchangeCodeForSession(parsed.code);
+          if (codeErr) throw codeErr;
+        } else {
+          throw new Error('Resposta do Google inválida. Tente novamente.');
+        }
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        // usuário cancelou — não é erro
+      }
+    } catch (e) {
+      logger.error('[Google OAuth]', e);
+      setErro(e?.message || 'Erro ao entrar com Google.');
+    } finally {
+      setLoadingGoogle(false);
+    }
   };
+
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Hero com gradiente e logo ── */}
+        <LinearGradient
+          colors={['#0284C7', '#0EA5E9', '#38BDF8']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={[styles.bubble, { width: 220, height: 220, top: -70, right: -60 }]} />
+          <View style={[styles.bubble, { width: 110, height: 110, bottom: -30, left: 20 }]} />
+          <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.heroTitle}>PetCare+</Text>
 
-        {/* Logo */}
-        <View style={styles.logoWrapper}>
-          <Image
-            source={require('../../../assets/logo.png')}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        </View>
+          {/* Frase emocional principal */}
+          <Text style={styles.heroEmotion}>
+            Tudo que seu pet precisa,{'\n'}organizado para você.
+          </Text>
+          <Text style={styles.heroTagline}>
+            Porque cuidar bem é um ato de amor.
+          </Text>
 
-        {/* Título */}
-        <Text style={styles.title}>Bem-vindo de volta!</Text>
-        <Text style={styles.subtitle}>Entre para gerenciar os cuidados do seu pet</Text>
+          {/* Feature chips */}
+          <View style={styles.featureGrid}>
+            <View style={styles.featureChip}>
+              <Image source={require('../../../assets/icon_medical.png')} style={styles.chipIcon} resizeMode="contain" />
+              <Text style={styles.chipText}>Vacinas em dia</Text>
+            </View>
+            <View style={styles.featureChip}>
+              <Image source={require('../../../assets/icon_map.png')} style={styles.chipIcon} resizeMode="contain" />
+              <Text style={styles.chipText}>Mapa Pet</Text>
+            </View>
+            <View style={styles.featureChip}>
+              <Image source={require('../../../assets/icon_fred.png')} style={styles.chipIcon} resizeMode="contain" />
+              <Text style={styles.chipText}>IA para dúvidas</Text>
+            </View>
+            <View style={styles.featureChip}>
+              <Image source={require('../../../assets/icon_expenses.png')} style={styles.chipIcon} resizeMode="contain" />
+              <Text style={styles.chipText}>Controle de gastos</Text>
+            </View>
+          </View>
+        </LinearGradient>
 
-        {/* Botão Google */}
-        <TouchableOpacity style={styles.socialBtn} onPress={() => handleSocialLogin('Google')}>
-          <GoogleLogo size={22} />
-          <Text style={styles.socialText}>Continuar com o Google</Text>
-        </TouchableOpacity>
+        {/* ── Formulário ── */}
+        <View style={styles.form}>
+          <Text style={styles.welcomeTitle}>Bem-vindo de volta!</Text>
+          <Text style={styles.welcomeSub}>Tudo sobre seus pets, num só lugar</Text>
 
-        {/* Botão Apple */}
-        <TouchableOpacity style={styles.socialBtn} onPress={() => handleSocialLogin('Apple')}>
-          <AppleLogo size={22} />
-          <Text style={styles.socialText}>Continuar com a Apple</Text>
-        </TouchableOpacity>
-
-        {/* Divisor OU */}
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OU</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Email */}
-        <Text style={styles.label}>Email</Text>
-        <View style={styles.inputWrapper}>
-          <Text style={styles.inputIcon}>✉</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="voce@exemplo.com"
-            placeholderTextColor="#9CA3AF"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-        </View>
-
-        {/* Senha */}
-        <Text style={styles.label}>Senha</Text>
-        <View style={styles.inputWrapper}>
-          <Text style={styles.inputIcon}>🔒</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#9CA3AF"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn}>
-            <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
+          {/* Botão Google */}
+          <TouchableOpacity
+            style={styles.socialBtn}
+            onPress={handleGoogleLogin}
+            disabled={loadingGoogle}
+            activeOpacity={0.8}
+          >
+            {loadingGoogle
+              ? <ActivityIndicator size="small" color="#4285F4" />
+              : <GoogleLogo size={22} />}
+            <Text style={styles.socialText}>Continuar com o Google</Text>
           </TouchableOpacity>
-        </View>
 
-        {/* Erro */}
-        {erro ? <Text style={styles.errorText}>{erro}</Text> : null}
+          {/* Divisor */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OU</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
-        {/* Botão entrar */}
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.loginBtnText}>Entrar</Text>}
-        </TouchableOpacity>
+          {/* Email */}
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.inputWrapper}>
+            <Text style={styles.inputIcon}>✉</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="voce@exemplo.com"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="next"
+              value={email}
+              onChangeText={setEmail}
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+          </View>
 
-        {/* Footer links */}
-        <View style={styles.footerRow}>
-          <TouchableOpacity>
-            <Text style={styles.footerLink}>Esqueceu a senha?</Text>
+          {/* Senha */}
+          <Text style={styles.label}>Senha</Text>
+          <View style={styles.inputWrapper}>
+            <Text style={styles.inputIcon}>🔒</Text>
+            <TextInput
+              style={styles.input}
+              ref={passwordRef}
+              placeholder="••••••••"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry={!showPassword}
+              returnKeyType="done"
+              value={password}
+              onChangeText={setPassword}
+              onSubmitEditing={handleLogin}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn}>
+              <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Erro */}
+          {erro ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{erro}</Text>
+            </View>
+          ) : null}
+
+          {/* Botão entrar */}
+          <TouchableOpacity onPress={handleLogin} disabled={loading} style={styles.loginBtnWrap}>
+            <LinearGradient
+              colors={['#0EA5E9', '#38BDF8']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.loginBtn}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.loginBtnText}>Entrar</Text>}
+            </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.footerLink}>
-              Não tem conta? <Text style={styles.footerLinkBold}>Cadastre-se</Text>
+
+          {/* Mini pitch premium */}
+          <View style={styles.pitchRow}>
+            <View style={styles.pitchDot} />
+            <Text style={styles.pitchText}>
+              Planos a partir de <Text style={styles.pitchBold}>R$9,90/mês</Text> — sem compromisso
             </Text>
-          </TouchableOpacity>
-        </View>
+          </View>
 
+          {/* Footer links */}
+          <View style={styles.footerRow}>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Esqueceu a senha?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Text style={styles.footerLink}>
+                Não tem conta? <Text style={styles.footerLinkBold}>Cadastre-se</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EBF8FF' },
-  inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  container: { flex: 1, backgroundColor: '#F0F9FF' },
+  inner: { flexGrow: 1 },
 
-  logoWrapper: { alignItems: 'center', marginBottom: 24 },
-  logoImage: { width: 110, height: 110, borderRadius: 55 },
+  hero: {
+    paddingTop: 48, paddingBottom: 28, paddingHorizontal: 24,
+    alignItems: 'center', overflow: 'hidden',
+  },
+  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)' },
+  logo: { width: 100, height: 100, marginBottom: 8 },
+  heroTitle: { fontSize: 30, fontWeight: '900', color: '#fff', letterSpacing: -0.5, marginBottom: 10 },
+  heroEmotion: {
+    fontSize: 20, fontWeight: '800', color: '#fff',
+    textAlign: 'center', lineHeight: 28, marginBottom: 10,
+  },
+  heroTagline: {
+    fontSize: 13, color: 'rgba(255,255,255,0.82)',
+    textAlign: 'center', lineHeight: 20, marginBottom: 20,
+  },
 
-  title: { fontSize: 28, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 6 },
-  subtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 28 },
+  featureGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  featureChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+  },
+  chipIcon: { width: 14, height: 14 },
+  chipText: { fontSize: 12, color: '#fff', fontWeight: '700' },
 
-  // Social buttons
+  form: {
+    flex: 1, backgroundColor: '#fff',
+    borderTopLeftRadius: 32, borderTopRightRadius: 32,
+    marginTop: -20,
+    paddingHorizontal: 24, paddingTop: 30, paddingBottom: 40,
+  },
+  welcomeTitle: { fontSize: 22, fontWeight: '800', color: '#1E293B', marginBottom: 4 },
+  welcomeSub: { fontSize: 13, color: '#64748B', marginBottom: 22 },
+
   socialBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#fff', borderRadius: 12, paddingVertical: 14,
-    borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12, gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+    backgroundColor: '#F8FAFC', borderRadius: 14, paddingVertical: 14,
+    borderWidth: 1.5, borderColor: '#E2E8F0', marginBottom: 10, gap: 10,
   },
   socialText: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
 
-  // Divisor
-  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 10 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 18, gap: 10 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  dividerText: { fontSize: 12, fontWeight: '600', color: '#94A3B8' },
+  dividerText: { fontSize: 12, fontWeight: '700', color: '#94A3B8' },
 
-  // Campos
-  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6 },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1.5, borderColor: '#E0F2FE',
     paddingHorizontal: 14, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 2, elevation: 1,
   },
   inputIcon: { fontSize: 16, marginRight: 10, color: '#94A3B8' },
   input: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#1E293B' },
   eyeBtn: { padding: 4 },
   eyeIcon: { fontSize: 18 },
 
-  errorText: { color: '#EF4444', fontSize: 13, textAlign: 'center', marginBottom: 12, marginTop: -8 },
-
-  // Botão login
-  loginBtn: {
-    backgroundColor: '#0D9488', borderRadius: 12, paddingVertical: 16,
-    alignItems: 'center', marginBottom: 20,
-    shadowColor: '#0D9488', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  errorBox: {
+    backgroundColor: '#FFF1F2', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: '#FECDD3', marginBottom: 14,
   },
-  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  errorText: { color: '#EF4444', fontSize: 13, textAlign: 'center' },
 
-  // Footer
+  loginBtnWrap: { borderRadius: 16, overflow: 'hidden', marginBottom: 20 },
+  loginBtn: { paddingVertical: 17, alignItems: 'center' },
+  loginBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+
+  pitchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F0F9FF', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+    marginBottom: 16, borderWidth: 1, borderColor: '#BAE6FD',
+  },
+  pitchDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#0EA5E9', flexShrink: 0 },
+  pitchText: { fontSize: 12, color: '#475569', flex: 1 },
+  pitchBold: { color: '#0284C7', fontWeight: '800' },
+
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   footerLink: { fontSize: 13, color: '#64748B' },
-  footerLinkBold: { color: '#0D9488', fontWeight: '700' },
+  footerLinkBold: { color: '#0EA5E9', fontWeight: '700' },
 });

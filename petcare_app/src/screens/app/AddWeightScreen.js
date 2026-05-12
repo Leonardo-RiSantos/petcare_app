@@ -5,6 +5,22 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import DatePickerInput from '../../components/DatePickerInput';
+
+const todayDDMMYYYY = () => {
+  const n = new Date();
+  return `${String(n.getDate()).padStart(2,'0')}/${String(n.getMonth()+1).padStart(2,'0')}/${n.getFullYear()}`;
+};
+const fmtDate = (text) => {
+  const d = text.replace(/\D/g,'').slice(0,8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0,2)}/${d.slice(2)}`;
+  return `${d.slice(0,2)}/${d.slice(2,4)}/${d.slice(4)}`;
+};
+const toStorage = (ddmmyyyy) => {
+  const m = ddmmyyyy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+};
 
 export default function AddWeightScreen({ route, navigation }) {
   const { petId, petName, currentWeight } = route.params;
@@ -12,7 +28,7 @@ export default function AddWeightScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     weight_kg: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayDDMMYYYY(),
     notes: '',
   });
 
@@ -25,12 +41,15 @@ export default function AddWeightScreen({ route, navigation }) {
       return;
     }
 
+    const dateStorage = toStorage(form.date);
+    if (!dateStorage) { Alert.alert('Data inválida', 'Use o formato DD/MM/AAAA.'); return; }
+
     setLoading(true);
     const { error } = await supabase.from('weight_records').insert({
       pet_id: petId,
       user_id: user.id,
       weight_kg: weight,
-      date: form.date,
+      date: dateStorage,
       notes: form.notes || null,
     });
 
@@ -58,18 +77,15 @@ export default function AddWeightScreen({ route, navigation }) {
         placeholderTextColor="#9CA3AF"
         value={form.weight_kg}
         onChangeText={v => set('weight_kg', v)}
-        keyboardType="numeric"
+        keyboardType="decimal-pad"
         autoFocus
       />
 
       <Text style={styles.label}>Data da pesagem</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="AAAA-MM-DD"
-        placeholderTextColor="#9CA3AF"
+      <DatePickerInput
         value={form.date}
         onChangeText={v => set('date', v)}
-        keyboardType="numeric"
+        label="Data da pesagem"
       />
 
       <Text style={styles.label}>Observações</Text>

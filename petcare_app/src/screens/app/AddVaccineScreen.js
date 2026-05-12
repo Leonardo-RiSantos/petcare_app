@@ -6,6 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import DatePickerInput from '../../components/DatePickerInput';
 
 const COMMON_VACCINES = {
   Cachorro: ['V8/V10', 'Antirrábica', 'Giárdia', 'Gripe Canina', 'Leishmaniose', 'Lyme'],
@@ -54,7 +55,7 @@ const calcNextDose = (appliedDDMM, vaccineName) => {
 };
 
 export default function AddVaccineScreen({ route, navigation }) {
-  const { petId, petName, petSpecies, prefillName } = route.params;
+  const { petId, petName, petSpecies, prefillName } = route.params || {};
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -148,14 +149,10 @@ export default function AddVaccineScreen({ route, navigation }) {
 
       {/* Data de aplicação */}
       <Text style={styles.label}>Data de aplicação *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="DD/MM/AAAA"
-        placeholderTextColor="#9CA3AF"
+      <DatePickerInput
         value={form.applied_date}
         onChangeText={handleAppliedDateChange}
-        keyboardType="numeric"
-        maxLength={10}
+        label="Data de aplicação"
       />
 
       {/* Próximo reforço — preenchido automaticamente */}
@@ -167,14 +164,11 @@ export default function AddVaccineScreen({ route, navigation }) {
           </View>
         )}
       </View>
-      <TextInput
-        style={[styles.input, form.next_dose_date.length === 10 && styles.inputAutoFilled]}
-        placeholder="DD/MM/AAAA"
-        placeholderTextColor="#9CA3AF"
+      <DatePickerInput
         value={form.next_dose_date}
-        onChangeText={v => set('next_dose_date', fmtDate(v))}
-        keyboardType="numeric"
-        maxLength={10}
+        onChangeText={v => set('next_dose_date', v)}
+        label="Próximo reforço"
+        style={form.next_dose_date.length === 10 ? { opacity: 0.85 } : undefined}
       />
       {form.next_dose_date.length === 10 && (
         <Text style={styles.autoHint}>

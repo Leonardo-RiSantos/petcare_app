@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Share, Linking,
+  ActivityIndicator, Alert, Share, Image, Platform,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
@@ -9,8 +9,44 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
-const SUPABASE_URL = 'https://wqabzvataiellbttoojn.supabase.co';
-const SPECIES_EMOJI = { Cachorro: '🐶', Gato: '🐱', Ave: '🐦', Coelho: '🐰', Hamster: '🐹', Réptil: '🦎', Outro: '🐾' };
+const SPECIES_IMAGES = {
+  Cachorro: require('../../../assets/pet_cachorro.png'),
+  Gato:     require('../../../assets/pet_gato.png'),
+  Ave:      require('../../../assets/pet_ave.png'),
+  Coelho:   require('../../../assets/pet_coelho.png'),
+  Hamster:  require('../../../assets/pet_hamster.png'),
+  Réptil:   require('../../../assets/pet_reptil.png'),
+  Peixe:    require('../../../assets/pet_peixe.png'),
+};
+
+// Faixa etária por espécie (meses)
+function getAgeStage(birthDate, species) {
+  if (!birthDate) return null;
+  const months = Math.floor((Date.now() - new Date(birthDate)) / (1000 * 60 * 60 * 24 * 30.44));
+  const thresholds = {
+    Cachorro: { filhote: 12, adolescente: 24 },
+    Gato:     { filhote: 12, adolescente: 36 },
+    Ave:      { filhote: 6,  adolescente: 18 },
+    Coelho:   { filhote: 6,  adolescente: 12 },
+    Hamster:  { filhote: 2,  adolescente: 6  },
+    Réptil:   { filhote: 12, adolescente: 24 },
+    Peixe:    { filhote: 6,  adolescente: 12  },
+  };
+  const t = thresholds[species] || { filhote: 12, adolescente: 24 };
+  if (months < t.filhote) return 'Filhote';
+  if (months < t.adolescente) return 'Adolescente';
+  return 'Adulto';
+}
+
+function calcAge(birthDate) {
+  if (!birthDate) return null;
+  const months = Math.floor((Date.now() - new Date(birthDate)) / (1000 * 60 * 60 * 24 * 30.44));
+  if (months < 1) return 'menos de 1 mês';
+  if (months < 12) return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return m > 0 ? `${y}a ${m}m` : `${y} ${y === 1 ? 'ano' : 'anos'}`;
+}
 
 export default function PetQRScreen({ route }) {
   const { petId } = route.params;
@@ -18,7 +54,6 @@ export default function PetQRScreen({ route }) {
   const [pet, setPet] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [savingPhone, setSavingPhone] = useState(false);
   const qrRef = useRef();
 
   useEffect(() => { fetchData(); }, []);
@@ -33,198 +68,180 @@ export default function PetQRScreen({ route }) {
     setLoading(false);
   };
 
-  const publicUrl = pet ? `${SUPABASE_URL}/functions/v1/pet-public?id=${pet.qr_code_id}` : '';
-  const shortId = pet ? pet.qr_code_id.substring(0, 8).toUpperCase() : '';
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
+  if (!pet) return null;
+
+  // O QR contém o código curto do pet — o vet digita ou escaneia para vincular
+  const shortCode = petId.split('-')[0].toUpperCase();
+  const qrValue   = shortCode; // código de 8 chars usado no VetAddPatientScreen
+
+  const ownerName = profile?.full_name || 'Tutor';
+  const contact   = pet.contact_phone || profile?.phone || 'Não informado';
+  const ageStage  = getAgeStage(pet.birth_date, pet.species);
+  const ageText   = calcAge(pet.birth_date);
+  const speciesImg = SPECIES_IMAGES[pet.species];
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `🐾 ${pet?.name} está registrado no PetCare+\n\nAcesse o RG digital: ${publicUrl}`,
-        url: publicUrl,
+        message: `🐾 ${pet.name} — PetCare+\nCódigo: ${shortCode}\n\nCompartilhe este código com o veterinário para acesso ao histórico completo.`,
       });
     } catch {}
   };
 
-  const handleCopyLink = async () => {
-    await Clipboard.setStringAsync(publicUrl);
-    Alert.alert('✅ Copiado!', 'Link público copiado para a área de transferência.');
+  const handleCopyCode = async () => {
+    await Clipboard.setStringAsync(shortCode);
+    Alert.alert('✅ Copiado!', `Código "${shortCode}" copiado. Envie ao veterinário.`);
   };
 
-  const handleOpenPublicPage = () => {
-    Linking.openURL(publicUrl);
-  };
-
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
-  if (!pet) return null;
-
-  const emoji = SPECIES_EMOJI[pet.species] || '🐾';
-  const ownerName = profile?.full_name || 'Tutor';
-  const contact = pet.contact_phone || profile?.phone || '(não informado)';
+  const InfoRow = ({ icon, label, value }) => value ? (
+    <View style={styles.infoRow}>
+      {typeof icon === 'string'
+        ? <Text style={styles.infoRowIcon}>{icon}</Text>
+        : <Image source={icon} style={styles.infoRowIconImg} resizeMode="contain" />}
+      <Text style={styles.infoRowLabel}>{label}</Text>
+      <Text style={styles.infoRowValue}>{value}</Text>
+    </View>
+  ) : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
-      {/* Badge premium */}
-      <View style={styles.premiumBadge}>
-        <Text style={styles.premiumText}>✦ RECURSO PREMIUM</Text>
-      </View>
+      <Text style={styles.pageTitle}>RG Digital</Text>
+      <Text style={styles.pageSubtitle}>Documento de identificação do seu pet com QR Code</Text>
 
-      <Text style={styles.pageTitle}>Identificação digital</Text>
-      <Text style={styles.pageSubtitle}>Documento oficial PetCare+ com QR Code para identificar seu pet em qualquer lugar.</Text>
-
-      {/* Card RG Digital */}
+      {/* ── Card RG ── */}
       <View style={styles.rgCard}>
-        {/* Header do card */}
+
+        {/* Header */}
         <LinearGradient
-          colors={['#0C4A6E', '#0EA5E9']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['#0C4A6E', '#0284C7', '#0EA5E9']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={styles.cardHeader}
         >
-          <View style={styles.cardHeaderLeft}>
+          <View style={[styles.bubble, { width: 120, height: 120, top: -30, right: -30 }]} />
+          <View style={[styles.bubble, { width: 60, height: 60, bottom: -15, left: 20 }]} />
+          <View>
             <Text style={styles.cardBrand}>🐾 PetCare+</Text>
             <Text style={styles.cardDocType}>RG Digital</Text>
           </View>
-          <View style={styles.cardHeaderRight}>
-            <Text style={styles.cardId}>#{shortId}</Text>
+          <View style={styles.shortCodeBox}>
+            <Text style={styles.shortCodeLabel}>CÓDIGO</Text>
+            <Text style={styles.shortCodeValue}>{shortCode}</Text>
           </View>
         </LinearGradient>
 
-        {/* Corpo do card */}
+        {/* Corpo */}
         <View style={styles.cardBody}>
-          {/* Pet info */}
+
+          {/* Avatar + nome */}
           <View style={styles.petRow}>
             <View style={styles.petAvatarCircle}>
-              <Text style={styles.petAvatarEmoji}>{emoji}</Text>
+              {pet.photo_url ? (
+                <Image source={{ uri: pet.photo_url }} style={styles.petAvatarPhoto} />
+              ) : speciesImg ? (
+                <Image source={speciesImg} style={styles.petAvatarImg} resizeMode="contain" />
+              ) : (
+                <Text style={{ fontSize: 36 }}>🐾</Text>
+              )}
             </View>
             <View style={styles.petInfoBlock}>
               <Text style={styles.petCardName}>{pet.name}</Text>
               <Text style={styles.petCardBreed}>
                 {pet.species}{pet.breed ? ` · ${pet.breed}` : ''}
               </Text>
+              {ageStage && (
+                <View style={styles.ageStageBadge}>
+                  <Text style={styles.ageStageText}>{ageStage}</Text>
+                </View>
+              )}
               <View style={styles.activeBadge}>
                 <Text style={styles.activeBadgeText}>● IDENTIFICAÇÃO ATIVA</Text>
               </View>
             </View>
           </View>
 
-          {/* Divisor */}
           <View style={styles.divider} />
 
-          {/* Personalidade e pelagem */}
-          {(pet.personality?.length > 0 || pet.coat_color) && (
-            <View style={styles.extrasSection}>
-              {pet.coat_color && (
-                <View style={styles.extrasRow}>
-                  <Text style={styles.extrasIcon}>🎨</Text>
-                  <Text style={styles.extrasLabel}>PELAGEM: </Text>
-                  <Text style={styles.extrasValue}>{pet.coat_color}</Text>
-                </View>
-              )}
-              {pet.personality?.length > 0 && (
-                <View style={styles.extrasRow}>
-                  <Text style={styles.extrasIcon}>🐾</Text>
-                  <Text style={styles.extrasLabel}>PERSONALIDADE: </Text>
-                  <Text style={styles.extrasValue}>{pet.personality.join(' · ')}</Text>
-                </View>
-              )}
-            </View>
-          )}
+          {/* Dados do pet */}
+          <View style={styles.dataSection}>
+            <InfoRow icon={require('../../../assets/icon_birthday.png')} label="Idade"    value={ageText} />
+            <InfoRow icon={require('../../../assets/icon_gender.png')}   label="Sexo"     value={pet.sex} />
+            <InfoRow icon={require('../../../assets/icon_palette.png')}  label="Pelagem"  value={pet.coat_color} />
+            <InfoRow icon="✂️"                                           label="Castrado" value={pet.neutered ? 'Sim' : null} />
+            <InfoRow icon={require('../../../assets/icon_weight.png')}   label="Peso"     value={pet.weight_kg ? `${pet.weight_kg} kg` : null} />
+            {pet.personality?.length > 0 && (
+              <InfoRow icon="🐾" label="Perfil"  value={pet.personality.join(' · ')} />
+            )}
+          </View>
 
-          <View style={[styles.divider, { marginTop: 0 }]} />
+          <View style={styles.divider} />
 
-          {/* Tutor e contato */}
-          <View style={styles.infoGrid}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoIcon}>👤</Text>
-              <Text style={styles.infoLabel}>TUTOR</Text>
-              <Text style={styles.infoValue}>{ownerName}</Text>
+          {/* Tutor */}
+          <View style={styles.tutorRow}>
+            <View style={styles.tutorItem}>
+              <Image source={require('../../../assets/icon_profile.png')} style={styles.tutorIcon} resizeMode="contain" />
+              <Text style={styles.tutorLabel}>TUTOR</Text>
+              <Text style={styles.tutorValue}>{ownerName}</Text>
             </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoIcon}>📞</Text>
-              <Text style={styles.infoLabel}>CONTATO</Text>
-              <Text style={styles.infoValue}>{contact}</Text>
+            <View style={styles.tutorItem}>
+              <Text style={styles.tutorIcon}>📞</Text>
+              <Text style={styles.tutorLabel}>CONTATO</Text>
+              <Text style={styles.tutorValue}>{contact}</Text>
             </View>
           </View>
 
+          <View style={styles.divider} />
+
           {/* QR Code */}
           <View style={styles.qrSection}>
-            <View style={styles.qrLockRow}>
-              <Text style={styles.qrLockIcon}>🔒</Text>
-              <Text style={styles.qrSectionLabel}>QR CODE</Text>
-            </View>
+            <Text style={styles.qrLabel}>QR CODE</Text>
             <View style={styles.qrWrapper}>
               <QRCode
-                value={publicUrl}
-                size={150}
+                value={qrValue}
+                size={160}
                 color="#1E293B"
                 backgroundColor="#fff"
                 getRef={qrRef}
               />
             </View>
-            <Text style={styles.qrCaption}>Escaneie para ver os dados públicos</Text>
-            <Text style={styles.qrSubCaption}>Link permanente, atualizado em tempo real</Text>
+            <Text style={styles.qrCaption}>
+              Escaneie ou use o código <Text style={styles.qrCodeHighlight}>{shortCode}</Text>
+            </Text>
+            <Text style={styles.qrSubCaption}>O veterinário usa este código para acessar o histórico</Text>
           </View>
 
-          {/* Footer do card */}
           <View style={styles.cardFooter}>
-            <Text style={styles.cardFooterText}>🐾 Documento oficial PetCare+</Text>
+            <Text style={styles.cardFooterText}>🐾 Documento oficial PetCare+ · {shortCode}</Text>
           </View>
         </View>
       </View>
 
-      {/* Botões de ação */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtnPrimary} onPress={handleShare}>
-          <Text style={styles.actionBtnPrimaryText}>⬆ Compartilhar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleOpenPublicPage}>
-          <Text style={styles.actionBtnSecondaryText}>↓ Abrir QR</Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity style={styles.copyLinkBtn} onPress={handleCopyLink}>
-        <Text style={styles.copyLinkText}>🔗 Copiar link público</Text>
+      {/* Ações */}
+      <TouchableOpacity style={styles.copyBtn} onPress={handleCopyCode}>
+        <LinearGradient colors={['#0EA5E9','#38BDF8']} start={{x:0,y:0}} end={{x:1,y:0}} style={styles.copyBtnGrad}>
+          <Text style={styles.copyBtnText}>Copiar código para o veterinário</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
-      {/* Info: dados públicos */}
-      <View style={styles.infoCard}>
-        <View style={styles.infoCardRow}>
-          <Text style={styles.infoCardIcon}>🔒</Text>
-          <View style={styles.infoCardContent}>
-            <Text style={styles.infoCardTitle}>Apenas dados públicos compartilhados</Text>
-            <Text style={styles.infoCardDesc}>Telefone, endereço completo e dados sensíveis ficam protegidos.</Text>
-          </View>
-        </View>
-      </View>
+      <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+        <Text style={styles.shareBtnText}>⬆ Compartilhar RG</Text>
+      </TouchableOpacity>
 
-      {/* Como funciona */}
+      {/* Como usar */}
       <View style={styles.howCard}>
-        <Text style={styles.howTitle}>❓ Como funciona?</Text>
-        <Text style={styles.howDesc}>Quando alguém escaneia o QR Code, visualiza as informações públicas do seu pet para facilitar a identificação e o contato com você.</Text>
-        <View style={styles.howItems}>
-          <View style={styles.howItem}>
-            <Text style={styles.howItemIcon}>🔗</Text>
-            <View>
-              <Text style={styles.howItemTitle}>Link permanente</Text>
-              <Text style={styles.howItemDesc}>Funciona mesmo sem o app aberto</Text>
-            </View>
+        <Text style={styles.howTitle}>Como o veterinário acessa?</Text>
+        {[
+          { icon: '1️⃣', text: `Copie o código ${shortCode} e envie ao veterinário` },
+          { icon: '2️⃣', text: 'O vet cria conta no PetCare+ como veterinário' },
+          { icon: '3️⃣', text: 'Na área dele, entra com o código para vincular o pet' },
+          { icon: '4️⃣', text: 'Acesso permanente ao histórico completo em tempo real' },
+        ].map((item, i) => (
+          <View key={i} style={styles.howRow}>
+            <Text style={styles.howIcon}>{item.icon}</Text>
+            <Text style={styles.howText}>{item.text}</Text>
           </View>
-          <View style={styles.howItem}>
-            <Text style={styles.howItemIcon}>🔒</Text>
-            <View>
-              <Text style={styles.howItemTitle}>Seguro e atualizado</Text>
-              <Text style={styles.howItemDesc}>Acesso sem login, em qualquer lugar</Text>
-            </View>
-          </View>
-          <View style={styles.howItem}>
-            <Text style={styles.howItemIcon}>⚡</Text>
-            <View>
-              <Text style={styles.howItemTitle}>Sempre atualizado</Text>
-              <Text style={styles.howItemDesc}>Mudou o dado? Já reflete no QR</Text>
-            </View>
-          </View>
-        </View>
+        ))}
       </View>
 
     </ScrollView>
@@ -236,104 +253,89 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingBottom: 50 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  premiumBadge: {
-    backgroundColor: '#FEF9C3', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6,
-    alignSelf: 'center', marginBottom: 14, borderWidth: 1, borderColor: '#FDE68A',
-  },
-  premiumText: { fontSize: 11, fontWeight: '800', color: '#B45309', letterSpacing: 1 },
-
   pageTitle: { fontSize: 24, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 6 },
   pageSubtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
 
-  // Card RG
   rgCard: {
-    borderRadius: 20, overflow: 'hidden', marginBottom: 20,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 },
+    borderRadius: 24, overflow: 'hidden', marginBottom: 20,
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2, shadowRadius: 16, elevation: 8,
   },
-  cardHeader: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardHeaderLeft: {},
-  cardHeaderRight: {},
-  cardBrand: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  cardDocType: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 },
-  cardId: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: 'monospace', fontWeight: '700' },
 
+  // Header
+  cardHeader: { padding: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', overflow: 'hidden' },
+  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' },
+  cardBrand: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  cardDocType: { color: '#fff', fontSize: 22, fontWeight: '900', marginTop: 2 },
+  shortCodeBox: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, padding: 12, alignItems: 'center' },
+  shortCodeLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1.5, marginBottom: 2 },
+  shortCodeValue: { fontSize: 20, fontWeight: '900', color: '#fff', letterSpacing: 2, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+
+  // Corpo
   cardBody: { backgroundColor: '#fff', padding: 20 },
 
+  // Pet row
   petRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
   petAvatarCircle: {
-    width: 68, height: 68, borderRadius: 34, backgroundColor: '#F0F9FF',
-    justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#E2E8F0',
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0F9FF',
+    justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#E0F2FE', overflow: 'hidden',
   },
-  petAvatarEmoji: { fontSize: 36 },
+  petAvatarPhoto: { width: 80, height: 80, borderRadius: 40 },
+  petAvatarImg: { width: 52, height: 52 },
   petInfoBlock: { flex: 1 },
-  petCardName: { fontSize: 22, fontWeight: '800', color: '#1E293B' },
+  petCardName: { fontSize: 22, fontWeight: '900', color: '#1E293B' },
   petCardBreed: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  activeBadge: { backgroundColor: '#DCFCE7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 8 },
-  activeBadgeText: { fontSize: 10, fontWeight: '700', color: '#16A34A', letterSpacing: 0.5 },
+  ageStageBadge: { backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 6 },
+  ageStageText: { fontSize: 11, fontWeight: '700', color: '#0EA5E9' },
+  activeBadge: { backgroundColor: '#DCFCE7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 4 },
+  activeBadgeText: { fontSize: 9, fontWeight: '700', color: '#16A34A', letterSpacing: 0.5 },
 
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 16 },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 14 },
 
-  infoGrid: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  infoItem: { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12 },
-  infoIcon: { fontSize: 18, marginBottom: 4 },
-  infoLabel: { fontSize: 9, fontWeight: '700', color: '#94A3B8', letterSpacing: 1, marginBottom: 4 },
-  infoValue: { fontSize: 14, fontWeight: '600', color: '#1E293B' },
+  // Dados
+  dataSection: { gap: 8 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoRowIcon: { fontSize: 14, width: 22 },
+  infoRowIconImg: { width: 16, height: 16, marginRight: 6 },
+  infoRowLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5, width: 60 },
+  infoRowValue: { fontSize: 13, color: '#1E293B', fontWeight: '600', flex: 1 },
 
-  qrSection: { alignItems: 'center', marginBottom: 16 },
-  qrLockRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
-  qrLockIcon: { fontSize: 14 },
-  qrSectionLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 1 },
+  // Tutor
+  tutorRow: { flexDirection: 'row', gap: 12 },
+  tutorItem: { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12 },
+  tutorIcon: { width: 22, height: 22, marginBottom: 4 },
+  tutorLabel: { fontSize: 9, fontWeight: '700', color: '#94A3B8', letterSpacing: 1, marginBottom: 4 },
+  tutorValue: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
+
+  // QR
+  qrSection: { alignItems: 'center' },
+  qrLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 1, marginBottom: 14 },
   qrWrapper: {
-    padding: 16, backgroundColor: '#fff', borderRadius: 16,
-    borderWidth: 1, borderColor: '#E2E8F0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    padding: 16, backgroundColor: '#fff', borderRadius: 20,
+    borderWidth: 1.5, borderColor: '#E0F2FE',
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
-  qrCaption: { fontSize: 13, color: '#374151', fontWeight: '600', marginTop: 12 },
-  qrSubCaption: { fontSize: 11, color: '#94A3B8', marginTop: 4 },
+  qrCaption: { fontSize: 13, color: '#374151', fontWeight: '600', marginTop: 12, textAlign: 'center' },
+  qrCodeHighlight: { color: '#0EA5E9', fontWeight: '900' },
+  qrSubCaption: { fontSize: 11, color: '#94A3B8', marginTop: 4, textAlign: 'center' },
 
-  extrasSection: { marginBottom: 14, gap: 6 },
-  extrasRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  extrasIcon: { fontSize: 14, marginRight: 4 },
-  extrasLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 },
-  extrasValue: { fontSize: 13, color: '#1E293B', fontWeight: '500', flex: 1 },
-
-  cardFooter: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, alignItems: 'center' },
-  cardFooterText: { fontSize: 11, color: '#94A3B8', fontWeight: '500' },
+  cardFooter: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, marginTop: 14, alignItems: 'center' },
+  cardFooterText: { fontSize: 11, color: '#94A3B8' },
 
   // Ações
-  actionsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  actionBtnPrimary: {
-    flex: 1, backgroundColor: '#0EA5E9', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center',
+  copyBtn: { borderRadius: 16, overflow: 'hidden', marginBottom: 10 },
+  copyBtnGrad: { paddingVertical: 17, alignItems: 'center' },
+  copyBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  shareBtn: {
+    backgroundColor: '#fff', borderRadius: 16, paddingVertical: 15, alignItems: 'center',
+    marginBottom: 24, borderWidth: 1.5, borderColor: '#E0F2FE',
   },
-  actionBtnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  actionBtnSecondary: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 15,
-    alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0',
-  },
-  actionBtnSecondaryText: { color: '#1E293B', fontSize: 15, fontWeight: '700' },
-  copyLinkBtn: {
-    backgroundColor: '#F8FAFC', borderRadius: 14, paddingVertical: 14,
-    alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0',
-  },
-  copyLinkText: { color: '#64748B', fontSize: 14, fontWeight: '600' },
+  shareBtnText: { color: '#1E293B', fontSize: 15, fontWeight: '700' },
 
-  // Info cards
-  infoCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12 },
-  infoCardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  infoCardIcon: { fontSize: 24 },
-  infoCardContent: { flex: 1 },
-  infoCardTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
-  infoCardDesc: { fontSize: 13, color: '#64748B', lineHeight: 18 },
-
-  howCard: { backgroundColor: '#fff', borderRadius: 14, padding: 16 },
-  howTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 8 },
-  howDesc: { fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 16 },
-  howItems: { gap: 14 },
-  howItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  howItemIcon: { fontSize: 22 },
-  howItemTitle: { fontSize: 13, fontWeight: '700', color: '#1E293B' },
-  howItemDesc: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  // Como usar
+  howCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#EFF6FF' },
+  howTitle: { fontSize: 15, fontWeight: '800', color: '#1E293B', marginBottom: 14 },
+  howRow: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
+  howIcon: { fontSize: 16, width: 28 },
+  howText: { fontSize: 13, color: '#374151', flex: 1, lineHeight: 20 },
 });

@@ -41,13 +41,22 @@ export default function PetPlaceBottomSheet({ place, onClose, onSave, savedIds =
     ]).start(onClose);
   };
 
-  const handleRoute = () => {
+  const handleRoute = async () => {
     if (!place) return;
-    const url = Platform.OS === 'ios'
-      ? `maps://?daddr=${place.latitude},${place.longitude}`
-      : `google.navigation:q=${place.latitude},${place.longitude}`;
-    const web = `https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}`;
-    Linking.openURL(url).catch(() => Linking.openURL(web));
+    const { latitude: lat, longitude: lng } = place;
+    const web = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    const candidates = [
+      `waze://?ll=${lat},${lng}&navigate=yes`,
+      Platform.OS === 'ios'
+        ? `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`
+        : `google.navigation:q=${lat},${lng}`,
+      ...(Platform.OS === 'ios' ? [`maps://?daddr=${lat},${lng}`] : []),
+    ];
+    for (const url of candidates) {
+      const ok = await Linking.canOpenURL(url).catch(() => false);
+      if (ok) { Linking.openURL(url); return; }
+    }
+    Linking.openURL(web);
   };
 
   const handlePhone = () => {

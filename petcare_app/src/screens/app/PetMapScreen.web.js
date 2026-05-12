@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  FlatList, ScrollView,
+  FlatList, ScrollView, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,8 @@ import {
 } from '../../services/placesService';
 import { sortByDistance, formatDistance } from '../../utils/distanceUtils';
 import PetPlaceBottomSheet from '../../components/PetPlaceBottomSheet';
+import { usePlan } from '../../hooks/usePlan';
+import UpgradeModal from '../../components/UpgradeModal';
 
 const SP_DEFAULT = { latitude: -23.5505, longitude: -46.6333 };
 
@@ -52,6 +54,8 @@ function PlaceCard({ place, onPress, saved }) {
 }
 
 export default function PetMapScreen() {
+  const { canUseMaps } = usePlan();
+  const [upgradeModal, setUpgradeModal] = useState(false);
   const [userLocation,   setUserLocation]   = useState(null);
   const [places,         setPlaces]         = useState([]);
   const [filtered,       setFiltered]       = useState([]);
@@ -65,7 +69,11 @@ export default function PetMapScreen() {
   // ── Salvos ────────────────────────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem('petmap_saved')
-      .then(v => { if (v) setSavedIds(JSON.parse(v)); })
+      .then(v => {
+        if (v) {
+          try { setSavedIds(JSON.parse(v)); } catch { /* corrupted storage, ignore */ }
+        }
+      })
       .catch(() => {});
     initLocation();
   }, []);
@@ -150,6 +158,29 @@ export default function PetMapScreen() {
     acc[p.category] = (acc[p.category] || 0) + 1;
     return acc;
   }, {});
+
+  if (!canUseMaps) {
+    return (
+      <View style={[styles.center, { padding: 32 }]}>
+        <UpgradeModal visible={upgradeModal} onClose={() => setUpgradeModal(false)} feature="maps" />
+        <Text style={{ fontSize: 52, marginBottom: 16 }}>🗺️</Text>
+        <Text style={{ fontSize: 20, fontWeight: '900', color: '#1E293B', marginBottom: 8, textAlign: 'center' }}>Mapa Pet</Text>
+        <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 21, marginBottom: 24 }}>
+          Encontre pet shops, veterinários e locais pet-friendly perto de você.{'\n'}Disponível no Plano Premium.
+        </Text>
+        <TouchableOpacity
+          onPress={() => setUpgradeModal(true)}
+          style={{ borderRadius: 16, overflow: 'hidden' }}
+        >
+          <LinearGradient colors={['#F59E0B', '#FBBF24']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={{ paddingVertical: 15, paddingHorizontal: 32, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Image source={require('../../../assets/icon_crown.png')} style={{ width: 20, height: 20 }} resizeMode="contain" />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Ver plano Premium</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
