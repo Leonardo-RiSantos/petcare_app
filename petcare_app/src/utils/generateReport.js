@@ -337,6 +337,128 @@ export function generatePrescriptionHTML({ consultation, prescriptions, pet, vet
 </div></body></html>`;
 }
 
+// ── DOCUMENTO RÁPIDO (Receita Avulsa / Atestado / Declaração) ─
+export function generateQuickDocHTML({ type, pet, vet, content, date }) {
+  const today = date || new Date().toLocaleDateString('pt-BR');
+  const titles = {
+    receita:    'RECEITUÁRIO VETERINÁRIO',
+    atestado:   'ATESTADO DE SAÚDE ANIMAL',
+    declaracao: 'DECLARAÇÃO VETERINÁRIA',
+  };
+  const docTitle = titles[type] || 'DOCUMENTO VETERINÁRIO';
+  const logoBackground = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjQwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjx0ZXh0IHg9IjEwMCIgeT0iMjgiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZm9udC13ZWlnaHQ9IjkwMCIgZmlsbD0iI0UyRThGMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UGV0Q2FyZSs8L3RleHQ+PC9zdmc+`;
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${docTitle} — ${pet?.name || 'Paciente'}</title>
+<style>
+${BASE_CSS}
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { max-width: 720px; margin: 0 auto; padding: 40px 40px 60px; min-height: 100vh; display: flex; flex-direction: column; }
+.doc-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; padding-bottom: 18px; border-bottom: 3px solid #0EA5E9; }
+.clinic-info h1 { font-size: 20px; font-weight: 900; color: #0284C7; margin-bottom: 3px; }
+.clinic-info p { font-size: 12px; color: #64748B; line-height: 1.6; }
+.clinic-logo { max-height: 72px; max-width: 150px; object-fit: contain; border-radius: 10px; }
+.clinic-logo-placeholder { width: 60px; height: 60px; background: linear-gradient(135deg,#0284C7,#38BDF8); border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; font-weight: 900; flex-shrink: 0; }
+.doc-title { text-align: center; font-size: 17px; font-weight: 900; letter-spacing: 2px; color: #1E293B; border: 2px solid #0EA5E9; border-radius: 10px; padding: 10px 20px; margin: 20px 0 22px; }
+.patient-row { display: flex; gap: 12px; margin-bottom: 22px; flex-wrap: wrap; }
+.patient-cell { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 10px; padding: 10px 14px; flex: 1; min-width: 120px; }
+.patient-cell .lbl { font-size: 9px; font-weight: 700; color: #0EA5E9; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px; }
+.patient-cell .val { font-size: 13px; font-weight: 800; color: #1E293B; }
+.doc-body { flex: 1; }
+.doc-section { margin-bottom: 18px; }
+.doc-section h3 { font-size: 12px; font-weight: 700; color: #0284C7; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; border-bottom: 1px solid #E0F2FE; padding-bottom: 5px; }
+.doc-section p, .doc-section .text-block { font-size: 14px; color: #1E293B; line-height: 1.7; white-space: pre-wrap; }
+.rx-med-item { border: 1px solid #E0F2FE; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.rx-med-name { font-size: 15px; font-weight: 800; color: #0284C7; margin-bottom: 4px; }
+.rx-med-detail { font-size: 13px; color: #374151; line-height: 1.6; }
+.signature-block { margin-top: 48px; display: flex; justify-content: flex-end; }
+.signature-inner { text-align: center; min-width: 220px; }
+.signature-img { max-height: 64px; max-width: 200px; object-fit: contain; display: block; margin: 0 auto 6px; }
+.signature-line { border-top: 1px solid #334155; padding-top: 7px; font-size: 12px; color: #374151; font-weight: 600; }
+.doc-footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between; }
+.footer-logo { opacity: 0.18; font-size: 22px; font-weight: 900; color: #0EA5E9; letter-spacing: 2px; }
+.footer-text { font-size: 10px; color: #CBD5E1; text-align: right; }
+@media print { @page { margin: 20mm 18mm; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-header">
+    <div class="clinic-info">
+      <h1>${vet?.clinic_name || 'Clínica Veterinária'}</h1>
+      <p>${vet?.full_name ? `Dr(a). ${vet.full_name}` : ''}${vet?.crm ? ` · CRMV ${vet.crm}${vet.estado ? `/${vet.estado}` : ''}` : ''}</p>
+      ${vet?.specialty ? `<p>${vet.specialty}</p>` : ''}
+      ${vet?.clinic_address ? `<p>${vet.clinic_address}</p>` : ''}
+    </div>
+    ${vet?.clinic_logo_url
+      ? `<img src="${vet.clinic_logo_url}" class="clinic-logo" />`
+      : `<div class="clinic-logo-placeholder">P+</div>`}
+  </div>
+
+  <div class="doc-title">${docTitle}</div>
+
+  <div class="patient-row">
+    <div class="patient-cell"><div class="lbl">Paciente</div><div class="val">${pet?.name || '—'}</div></div>
+    <div class="patient-cell"><div class="lbl">Espécie</div><div class="val">${pet?.species || '—'}${pet?.breed ? ` · ${pet.breed}` : ''}</div></div>
+    ${pet?.tutor_name ? `<div class="patient-cell"><div class="lbl">Tutor</div><div class="val">${pet.tutor_name}</div></div>` : ''}
+    <div class="patient-cell"><div class="lbl">Data</div><div class="val">${today}</div></div>
+  </div>
+
+  <div class="doc-body">
+    ${type === 'receita' ? `
+      <div class="doc-section">
+        <h3>Medicamentos prescritos</h3>
+        ${(content.medications || []).map((m, i) => `
+          <div class="rx-med-item">
+            <div class="rx-med-name">${i + 1}. ${m.name}</div>
+            <div class="rx-med-detail">
+              ${m.dose ? `<b>Dose:</b> ${m.dose}` : ''}
+              ${m.frequency ? ` · <b>Frequência:</b> ${m.frequency}` : ''}
+              ${m.duration ? ` · <b>Duração:</b> ${m.duration}` : ''}
+              ${m.instructions ? `<br><i>${m.instructions}</i>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+      ${content.notes ? `<div class="doc-section"><h3>Observações</h3><p class="text-block">${content.notes}</p></div>` : ''}
+    ` : type === 'atestado' ? `
+      <div class="doc-section">
+        <h3>Atesto que</h3>
+        <p class="text-block">${content.statement || `O(a) animal ${pet?.name || ''} encontra-se em bom estado de saúde geral, apto(a) para as atividades descritas.`}</p>
+      </div>
+      ${content.restrictions ? `<div class="doc-section"><h3>Restrições / Recomendações</h3><p class="text-block">${content.restrictions}</p></div>` : ''}
+      ${content.validity ? `<div class="doc-section"><h3>Validade</h3><p>${content.validity}</p></div>` : ''}
+    ` : `
+      <div class="doc-section">
+        <p class="text-block">${content.text || ''}</p>
+      </div>
+    `}
+  </div>
+
+  <div class="signature-block">
+    <div class="signature-inner">
+      ${vet?.signature_url ? `<img src="${vet.signature_url}" class="signature-img" />` : '<div style="height:64px"></div>'}
+      <div class="signature-line">
+        ${vet?.full_name ? `Dr(a). ${vet.full_name}` : 'Médico(a) Veterinário(a)'}
+        ${vet?.crm ? `<br>CRMV ${vet.crm}${vet.estado ? `/${vet.estado}` : ''}` : ''}
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <div class="footer-logo">PetCare+</div>
+    <div class="footer-text">Documento gerado em ${today}<br>PetCare+ · Software de Gestão Veterinária</div>
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
 // ── Exportador universal (web + native) ───────────────────────
 export async function exportReport(html, filename) {
   if (Platform.OS === 'web') {

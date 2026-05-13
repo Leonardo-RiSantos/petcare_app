@@ -35,6 +35,7 @@ import VetDashboardScreen         from '../screens/vet/VetDashboardScreen';
 import VetPatientScreen           from '../screens/vet/VetPatientScreen';
 import VetAddPatientScreen        from '../screens/vet/VetAddPatientScreen';
 import VetAddAppointmentScreen    from '../screens/vet/VetAddAppointmentScreen';
+import VetQuickDocScreen          from '../screens/vet/VetQuickDocScreen';
 import VetCalendarScreen          from '../screens/vet/VetCalendarScreen';
 import VetFinancialScreen         from '../screens/vet/VetFinancialScreen';
 import VetConsultationScreen      from '../screens/vet/VetConsultationScreen';
@@ -267,6 +268,7 @@ function VetStack() {
       <Stack.Screen name="VetAddPatient"           component={VetAddPatientScreen}          options={{ title: 'Adicionar Paciente' }} />
       <Stack.Screen name="AddMedicalRecord"        component={AddMedicalRecordScreen}       options={{ title: 'Novo Registro' }} />
       <Stack.Screen name="VetAddAppointment"       component={VetAddAppointmentScreen}      options={{ title: 'Agendar Consulta' }} />
+      <Stack.Screen name="VetQuickDoc"             component={VetQuickDocScreen}            options={{ title: 'Receita / Atestado' }} />
       <Stack.Screen name="VetCalendar"             component={VetCalendarScreen}            options={{ headerShown: false }} />
       <Stack.Screen name="VetFinancial"            component={VetFinancialScreen}           options={{ title: 'Financeiro' }} />
       <Stack.Screen name="VetConsultation"         component={VetConsultationScreen}        options={{ title: 'Prontuário' }} />

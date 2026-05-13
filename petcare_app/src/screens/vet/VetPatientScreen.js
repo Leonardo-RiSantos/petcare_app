@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Modal, Image, Platform,
+  ActivityIndicator, Modal, Image, TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
-import { useLayout } from '../../hooks/useLayout';
+import WeightChart from '../../components/WeightChart';
 
 const SPECIES_IMAGES = {
   Cachorro: require('../../../assets/pet_cachorro.png'),
@@ -23,586 +23,731 @@ const ICON_MEDICINE = require('../../../assets/icon_medicine.png');
 const ICON_CHECK    = require('../../../assets/icon_check.png');
 const ICON_WARNING  = require('../../../assets/icon_warning.png');
 const ICON_LATE     = require('../../../assets/icon_late.png');
+const ICON_WEIGHT   = require('../../../assets/icon_weight.png');
+const ICON_EXPENSES = require('../../../assets/icon_expenses.png');
+const ICON_CALENDAR = require('../../../assets/icon_calendar.png');
+const ICON_PROFILE  = require('../../../assets/icon_profile.png');
 
-const TYPE_CONFIG = {
-  consulta:    { label: 'Consulta',    image: ICON_MEDICAL,  color: '#F43F5E', bg: '#FFE4E6' },
-  cirurgia:    { label: 'Cirurgia',    image: ICON_MEDICAL,  color: '#8B5CF6', bg: '#EDE9FE' },
-  exame:       { label: 'Exame',       image: ICON_MEDICAL,  color: '#F59E0B', bg: '#FEF3C7' },
-  alergia:     { label: 'Alergia',     image: ICON_WARNING,  color: '#EF4444', bg: '#FFE4E6' },
-  medicamento: { label: 'Medicamento', image: ICON_MEDICINE, color: '#EC4899', bg: '#FCE7F3' },
-  outro:       { label: 'Outro',       image: ICON_MEDICAL,  color: '#64748B', bg: '#F1F5F9' },
+const CONSULT_COLORS = {
+  consulta:   { label: 'Consulta',    color: '#0EA5E9', bg: '#EFF6FF' },
+  retorno:    { label: 'Retorno',     color: '#10B981', bg: '#DCFCE7' },
+  cirurgia:   { label: 'Cirurgia',    color: '#8B5CF6', bg: '#EDE9FE' },
+  exame:      { label: 'Exame',       color: '#F59E0B', bg: '#FEF3C7' },
+  vacinacao:  { label: 'Vacinação',   color: '#16A34A', bg: '#DCFCE7' },
+  outro:      { label: 'Procedimento',color: '#64748B', bg: '#F1F5F9' },
+};
+const STATUS_LABELS = {
+  scheduled: 'Agendado', confirmed: 'Confirmado', completed: 'Realizado',
+  cancelled: 'Cancelado', no_show: 'Faltou', pending_approval: 'Aguardando',
+};
+const STATUS_COLORS = {
+  scheduled: '#0EA5E9', confirmed: '#10B981', completed: '#64748B',
+  cancelled: '#EF4444', no_show: '#EF4444', pending_approval: '#F59E0B',
 };
 
-function formatDate(d) {
+const fmt = (d) => {
   if (!d) return '—';
   const [y, m, day] = String(d).split('T')[0].split('-');
   return `${day}/${m}/${y}`;
-}
+};
+const calcAge = (b) => {
+  if (!b) return null;
+  const months = Math.floor((Date.now() - new Date(b)) / (1000 * 60 * 60 * 24 * 30.44));
+  return months < 12 ? `${months} meses` : `${Math.floor(months / 12)} ano${Math.floor(months/12) > 1 ? 's' : ''}`;
+};
 
-function calcAge(birthDate) {
-  if (!birthDate) return null;
-  const months = Math.floor((Date.now() - new Date(birthDate)) / (1000 * 60 * 60 * 24 * 30.44));
-  return months < 12 ? `${months} meses` : `${Math.floor(months / 12)} anos`;
-}
-
-function StatusPill({ icon, count, label, bg, labelColor }) {
+function SectionHeader({ title, count, action, onAction }) {
   return (
-    <View style={[styles.pill, { backgroundColor: bg }]}>
-      <Image source={icon} style={styles.pillIcon} resizeMode="contain" />
-      <Text style={[styles.pillCount, { color: labelColor }]}>{count}</Text>
-      <Text style={[styles.pillLabel, { color: labelColor }]}>{label}</Text>
+    <View style={s.secHeader}>
+      <Text style={s.secTitle}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {count !== undefined && (
+          <View style={s.badge}><Text style={s.badgeTxt}>{count}</Text></View>
+        )}
+        {action && (
+          <TouchableOpacity onPress={onAction} style={s.secAction}>
+            <Text style={s.secActionTxt}>{action}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
 
-const ICON_CALENDAR = require('../../../assets/icon_late.png');
-
 export default function VetPatientScreen({ route, navigation }) {
   const { petId } = route.params || {};
   const { user, vetProfile } = useAuth();
-  const { isDesktop } = useLayout();
-  const [pet, setPet] = useState(null);
-  const [records, setRecords] = useState([]);
-  const [vaccines, setVaccines] = useState([]);
-  const [weights, setWeights] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!petId) return;
-    fetchData();
-  }, [petId]);
+  const [pet,           setPet]           = useState(null);
+  const [records,       setRecords]       = useState([]);
+  const [vaccines,      setVaccines]      = useState([]);
+  const [weights,       setWeights]       = useState([]);
+  const [consultations, setConsultations] = useState([]);
+  const [scheduleAppts, setScheduleAppts] = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [showRemove,    setShowRemove]    = useState(false);
+  const [activeTab,     setActiveTab]     = useState('prontuario');
+
+  // Modal registrar medidas
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [weightForm, setWeightForm] = useState({ weight_kg: '', height_cm: '', length_cm: '', notes: '' });
+  const [savingWeight, setSavingWeight] = useState(false);
+
+  // Modal aceitar/recusar agendamento pendente
+  const [apptAction, setApptAction] = useState(null); // { appt, action: 'confirm'|'cancel' }
+
+  useEffect(() => { if (petId) fetchData(); }, [petId]);
 
   const fetchData = async () => {
-    const [petRes, recRes, vacRes, wRes, apptRes] = await Promise.all([
-      supabase.from('pets').select('id, name, species, breed, birth_date, photo_url, sex, neutered, weight_kg, health_notes, medications, user_id').eq('id', petId).single(),
-      supabase.from('medical_records').select('id, type, title, description, date, veterinarian, diagnosis, prescription, created_by_role').eq('pet_id', petId).order('date', { ascending: false }),
-      supabase.from('vaccines').select('id, name, applied_date, next_dose_date').eq('pet_id', petId).order('applied_date', { ascending: false }),
-      supabase.from('weight_records').select('id, weight_kg, date, notes').eq('pet_id', petId).order('date', { ascending: false }).limit(10),
-      supabase.from('appointments').select('id, type, scheduled_date, scheduled_time, notes, status').eq('pet_id', petId).eq('vet_id', user.id).order('scheduled_date', { ascending: true }),
+    const [petRes, recRes, vacRes, wRes, consultRes, schedRes] = await Promise.all([
+      supabase.from('pets')
+        .select('id, name, species, breed, birth_date, photo_url, sex, neutered, weight_kg, health_notes, medications, user_id, coat_color')
+        .eq('id', petId).single(),
+      supabase.from('medical_records')
+        .select('id, type, title, description, date, veterinarian, diagnosis, prescription, created_by_role')
+        .eq('pet_id', petId).order('date', { ascending: false }),
+      supabase.from('vaccines')
+        .select('id, name, applied_date, next_dose_date')
+        .eq('pet_id', petId).order('applied_date', { ascending: false }),
+      supabase.from('weight_records')
+        .select('id, weight_kg, date, notes')
+        .eq('pet_id', petId).order('date', { ascending: false }).limit(8),
+      supabase.from('vet_consultations')
+        .select('id, date, type, chief_complaint, diagnosis, treatment_plan, notes, weight_at_visit, temperature, visible_to_owner')
+        .eq('vet_id', user.id).eq('pet_id', petId)
+        .order('date', { ascending: false }),
+      supabase.from('vet_schedule')
+        .select('id, scheduled_date, scheduled_time, type, status, notes, request_message')
+        .eq('vet_id', user.id).eq('pet_id', petId)
+        .order('scheduled_date', { ascending: true }),
     ]);
-    if (petRes.data) setPet(petRes.data);
-    if (recRes.data) setRecords(recRes.data);
-    if (vacRes.data) setVaccines(vacRes.data);
-    if (wRes.data) setWeights(wRes.data);
-    if (apptRes.data) setAppointments(apptRes.data);
+    if (petRes.data)       setPet(petRes.data);
+    if (recRes.data)       setRecords(recRes.data);
+    if (vacRes.data)       setVaccines(vacRes.data);
+    if (wRes.data)         setWeights(wRes.data);
+    if (consultRes.data)   setConsultations(consultRes.data);
+    if (schedRes.data)     setScheduleAppts(schedRes.data);
     setLoading(false);
   };
 
-  const [showRemoveModal, setShowRemoveModal] = useState(false);
-
-  const handleRemove = () => setShowRemoveModal(true);
-
   const confirmRemove = async () => {
-    try {
-      const { error } = await supabase.from('pet_vet_links')
-        .update({ status: 'removed' })
-        .eq('pet_id', petId)
-        .eq('vet_id', user.id);
-      if (!error) navigation.goBack();
-    } catch (e) { /* silent */ }
-    setShowRemoveModal(false);
+    await supabase.from('pet_vet_links').update({ status: 'removed' }).eq('pet_id', petId).eq('vet_id', user.id);
+    setShowRemove(false);
+    navigation.goBack();
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
-  if (!pet) return null;
+  const saveWeight = async () => {
+    const kg = parseFloat(weightForm.weight_kg.replace(',', '.'));
+    if (isNaN(kg) || kg <= 0) return;
+    setSavingWeight(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const extra = {};
+    if (weightForm.height_cm) extra.height_cm = parseFloat(weightForm.height_cm.replace(',', '.'));
+    if (weightForm.length_cm) extra.length_cm = parseFloat(weightForm.length_cm.replace(',', '.'));
+    const { error } = await supabase.from('weight_records').insert({
+      pet_id: petId,
+      user_id: pet.user_id,
+      weight_kg: kg,
+      date: today,
+      notes: weightForm.notes.trim() || null,
+      ...extra,
+    });
+    setSavingWeight(false);
+    if (!error) {
+      setShowWeightModal(false);
+      setWeightForm({ weight_kg: '', height_cm: '', length_cm: '', notes: '' });
+      fetchData();
+    }
+  };
 
-  const today = new Date();
-  const in30 = new Date(); in30.setDate(today.getDate() + 30);
-  const lateVac    = vaccines.filter(v => v.next_dose_date && new Date(v.next_dose_date) < today);
-  const warnVac    = vaccines.filter(v => v.next_dose_date && new Date(v.next_dose_date) >= today && new Date(v.next_dose_date) <= in30);
-  const okVac      = vaccines.filter(v => !v.next_dose_date || new Date(v.next_dose_date) > in30);
-  const latestWeight = weights[0];
+  const handleApptAction = async (appt, action) => {
+    const newStatus = action === 'confirm' ? 'scheduled' : 'cancelled';
+    await supabase.from('vet_schedule').update({ status: newStatus }).eq('id', appt.id);
+    setApptAction(null);
+    fetchData();
+  };
 
-  // ── Blocos de conteúdo reutilizáveis em ambos os layouts ─────
+  if (loading) return <View style={s.center}><ActivityIndicator size="large" color="#0EA5E9" /></View>;
+  if (!pet)    return null;
 
-  const patientCard = (
-    <>
-      {/* Hero do pet */}
-      <LinearGradient
-        colors={['#0284C7', '#0EA5E9', '#38BDF8']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <View style={[styles.bubble, { width: 160, height: 160, top: -40, right: -30 }]} />
-        <View style={[styles.bubble, { width: 80, height: 80, bottom: -20, left: 20 }]} />
+  const today  = new Date();
+  const in30   = new Date(); in30.setDate(today.getDate() + 30);
+  const age    = calcAge(pet.birth_date);
+  const latest = weights[0];
+  const upcomingAppts = scheduleAppts.filter(a => new Date(a.scheduled_date) >= today || a.status === 'pending_approval');
+  const pastAppts     = scheduleAppts.filter(a => new Date(a.scheduled_date) < today && a.status !== 'pending_approval');
 
-        {/* Foto ou ícone */}
-        {pet.photo_url ? (
-          <Image source={{ uri: pet.photo_url }} style={styles.petPhoto} />
-        ) : (
-          <View style={styles.petAvatarWrap}>
-            {SPECIES_IMAGES[pet.species]
-              ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 52, height: 52 }} resizeMode="contain" />
-              : <Text style={{ fontSize: 48 }}>🐾</Text>}
-          </View>
-        )}
+  const lateVac = vaccines.filter(v => v.next_dose_date && new Date(v.next_dose_date) < today).length;
+  const warnVac = vaccines.filter(v => v.next_dose_date && new Date(v.next_dose_date) >= today && new Date(v.next_dose_date) <= in30).length;
 
-        <Text style={styles.petName}>{pet.name}</Text>
-        <Text style={styles.petSub}>
-          {pet.species}{pet.breed ? ` · ${pet.breed}` : ''}
-          {pet.birth_date ? ` · ${calcAge(pet.birth_date)}` : ''}
-        </Text>
+  const TABS = [
+    { key: 'prontuario',   label: 'Prontuário' },
+    { key: 'agendamentos', label: `Agenda (${scheduleAppts.length})` },
+    { key: 'vacinas',      label: 'Vacinas' },
+    { key: 'evolucao',     label: 'Evolução' },
+  ];
 
-        <View style={styles.heroBadges}>
-          {pet.sex      && <View style={styles.heroBadge}><Text style={styles.heroBadgeTxt}>{pet.sex}</Text></View>}
-          {pet.neutered && <View style={styles.heroBadge}><Text style={styles.heroBadgeTxt}>Castrado(a)</Text></View>}
-          {latestWeight && <View style={styles.heroBadge}><Text style={styles.heroBadgeTxt}>{latestWeight.weight_kg} kg</Text></View>}
-        </View>
-      </LinearGradient>
+  return (
+    <View style={s.root}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
-      {/* Saúde e medicamentos do pet */}
-      {(pet.health_notes || pet.medications) && (
-        <View style={styles.healthCard}>
-          <View style={styles.healthCardHeader}>
-            <Image source={ICON_MEDICAL} style={{ width: 18, height: 18 }} resizeMode="contain" />
-            <Text style={styles.healthCardTitle}>Informações de Saúde</Text>
-          </View>
-          {pet.health_notes && (
-            <View style={styles.healthRow}>
-              <Text style={styles.healthLabel}>Condição de saúde</Text>
-              <Text style={styles.healthValue}>{pet.health_notes}</Text>
-            </View>
-          )}
-          {pet.medications && (
-            <View style={[styles.healthRow, pet.health_notes && styles.healthRowBorder]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                <Image source={ICON_MEDICINE} style={{ width: 14, height: 14 }} resizeMode="contain" />
-                <Text style={styles.healthLabel}>Medicamentos em uso</Text>
+        {/* ── HERO DO PACIENTE ──────────────────────────── */}
+        <LinearGradient colors={['#0F3460', '#0284C7', '#0EA5E9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+          <View style={[s.bubble, { width: 180, height: 180, top: -50, right: -40 }]} />
+          <View style={[s.bubble, { width: 90, height: 90, bottom: -20, left: 30 }]} />
+
+          <View style={s.heroInner}>
+            {/* Avatar */}
+            {pet.photo_url
+              ? <Image source={{ uri: pet.photo_url }} style={s.avatar} />
+              : <LinearGradient colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)']} style={s.avatarDefault}>
+                  {SPECIES_IMAGES[pet.species]
+                    ? <Image source={SPECIES_IMAGES[pet.species]} style={{ width: 48, height: 48 }} resizeMode="contain" />
+                    : <Text style={{ fontSize: 40 }}>🐾</Text>}
+                </LinearGradient>}
+
+            {/* Nome e info principal */}
+            <View style={s.heroInfo}>
+              <Text style={s.heroName}>{pet.name}</Text>
+              <Text style={s.heroSub}>
+                {pet.species}{pet.breed ? ` · ${pet.breed}` : ''}
+                {age ? ` · ${age}` : ''}
+              </Text>
+              <View style={s.heroPills}>
+                {pet.sex && <View style={s.heroPill}><Text style={s.heroPillTxt}>{pet.sex}</Text></View>}
+                {pet.neutered && <View style={s.heroPill}><Text style={s.heroPillTxt}>Castrado(a)</Text></View>}
+                {latest && <View style={s.heroPill}><Text style={s.heroPillTxt}>{latest.weight_kg} kg</Text></View>}
               </View>
-              <Text style={[styles.healthValue, { color: '#EC4899' }]}>{pet.medications}</Text>
             </View>
-          )}
-        </View>
-      )}
-
-      {/* Status vacinas */}
-      {vaccines.length > 0 && (
-        <View style={styles.statusRow}>
-          <StatusPill icon={ICON_CHECK}   count={okVac.length}   label="Em dia"    bg="#F0FDF4" labelColor="#16A34A" />
-          <StatusPill icon={ICON_WARNING} count={warnVac.length} label="Vencendo"  bg="#FFFBEB" labelColor="#D97706" />
-          <StatusPill icon={ICON_LATE}    count={lateVac.length} label="Atrasadas" bg="#FFF1F2" labelColor="#DC2626" />
-        </View>
-      )}
-
-      {/* Alerta vacinas atrasadas */}
-      {lateVac.length > 0 && (
-        <View style={styles.alertBanner}>
-          <Image source={ICON_LATE} style={{ width: 28, height: 28 }} resizeMode="contain" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.alertTitle}>{lateVac.length} vacina(s) em atraso!</Text>
-            {lateVac.map(v => (
-              <Text key={v.id} style={styles.alertItem}>• {v.name} — venceu em {formatDate(v.next_dose_date)}</Text>
-            ))}
           </View>
-        </View>
-      )}
 
-      {/* Remover acesso — no painel esquerdo em desktop */}
-      {isDesktop && (
-        <TouchableOpacity style={[styles.removeBtn, { marginTop: 20 }]} onPress={handleRemove}>
-          <Text style={styles.removeBtnText}>Remover acesso a este paciente</Text>
-        </TouchableOpacity>
-      )}
-    </>
-  );
+          {/* Indicadores rápidos */}
+          <View style={s.heroStats}>
+            <View style={s.heroStat}>
+              <Text style={s.heroStatVal}>{vaccines.length}</Text>
+              <Text style={s.heroStatLbl}>Vacinas</Text>
+            </View>
+            <View style={s.heroStatDiv} />
+            <View style={s.heroStat}>
+              <Text style={[s.heroStatVal, lateVac > 0 && { color: '#FCA5A5' }]}>{lateVac}</Text>
+              <Text style={s.heroStatLbl}>Atrasadas</Text>
+            </View>
+            <View style={s.heroStatDiv} />
+            <View style={s.heroStat}>
+              <Text style={s.heroStatVal}>{consultations.length}</Text>
+              <Text style={s.heroStatLbl}>Consultas</Text>
+            </View>
+            <View style={s.heroStatDiv} />
+            <View style={s.heroStat}>
+              <Text style={[s.heroStatVal, upcomingAppts.length > 0 && { color: '#A5F3FC' }]}>{upcomingAppts.length}</Text>
+              <Text style={s.heroStatLbl}>Próximos</Text>
+            </View>
+          </View>
+        </LinearGradient>
 
-  const clinicalPanel = (
-    <>
-      {/* Ações */}
-      <View style={styles.actionRow}>
-        {/* Prontuário estruturado — botão principal */}
-        <TouchableOpacity
-          style={[styles.actionBtnWrap, { flex: 1 }]}
-          onPress={() => navigation.navigate('VetConsultation', {
-            petId, petName: pet.name,
-          })}
-        >
-          <LinearGradient
-            colors={['#0284C7', '#0EA5E9']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={styles.actionBtn}
-          >
-            <Image source={ICON_MEDICAL} style={{ width: 18, height: 18, marginRight: 6 }} resizeMode="contain" />
-            <Text style={styles.actionBtnText}>Nova Consulta</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Registro simples */}
-        <TouchableOpacity
-          style={[styles.actionBtnWrap, { flex: 1 }]}
-          onPress={() => navigation.navigate('AddMedicalRecord', {
-            petId, petName: pet.name, isVet: true,
-            vetName: vetProfile?.full_name || '',
-          })}
-        >
-          <LinearGradient
-            colors={['#10B981', '#34D399']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={styles.actionBtn}
-          >
-            <Image source={ICON_MEDICAL} style={{ width: 18, height: 18, marginRight: 6 }} resizeMode="contain" />
-            <Text style={styles.actionBtnText}>Reg. Simples</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionBtnWrap, { flex: 1 }]}
-          onPress={() => navigation.navigate('VetAddAppointment', {
-            petId, petName: pet.name, tutorId: pet.user_id,
-          })}
-        >
-          <LinearGradient
-            colors={['#7C3AED', '#A78BFA']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={styles.actionBtn}
-          >
-            <Image source={ICON_CALENDAR} style={{ width: 18, height: 18, marginRight: 6 }} resizeMode="contain" />
-            <Text style={styles.actionBtnText}>Agendar</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Chat com tutor — só aparece se vet habilitou o chat */}
-        {vetProfile?.chat_enabled && (
-          <TouchableOpacity
-            style={[styles.actionBtnWrap, { flex: 1 }]}
-            onPress={() => navigation.navigate('VetChat', {
-              petId, petName: pet.name, tutorId: pet.user_id,
-            })}
-          >
-            <LinearGradient
-              colors={['#F59E0B', '#FBBF24']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.actionBtn}
-            >
-              <Text style={{ fontSize: 14, marginRight: 4 }}>💬</Text>
-              <Text style={styles.actionBtnText}>Chat</Text>
+        {/* ── AÇÕES RÁPIDAS ─────────────────────────────── */}
+        <View style={s.actions}>
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('VetConsultation', { petId, petName: pet.name })} activeOpacity={0.85}>
+            <LinearGradient colors={['#0284C7', '#0EA5E9']} style={s.actionBtnGrad}>
+              <Image source={ICON_MEDICAL} style={s.actionIcon} resizeMode="contain" />
+              <Text style={s.actionLbl}>Nova{'\n'}Consulta</Text>
             </LinearGradient>
           </TouchableOpacity>
-        )}
-      </View>
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('VetAddAppointment', { petId, petName: pet.name, tutorId: pet.user_id })} activeOpacity={0.85}>
+            <LinearGradient colors={['#7C3AED', '#A78BFA']} style={s.actionBtnGrad}>
+              <Image source={ICON_CALENDAR} style={s.actionIcon} resizeMode="contain" />
+              <Text style={s.actionLbl}>Agendar{'\n'}Consulta</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('VetQuickDoc', { petId, petName: pet.name, petSpecies: pet.species, tutorId: pet.user_id })} activeOpacity={0.85}>
+            <LinearGradient colors={['#10B981', '#34D399']} style={s.actionBtnGrad}>
+              <Image source={ICON_EXPENSES} style={s.actionIcon} resizeMode="contain" />
+              <Text style={s.actionLbl}>Receita{'\n'}Atestado</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          {vetProfile?.chat_enabled && (
+            <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('VetChat', { petId, petName: pet.name, tutorId: pet.user_id })} activeOpacity={0.85}>
+              <LinearGradient colors={['#F59E0B', '#FBBF24']} style={s.actionBtnGrad}>
+                <Text style={{ fontSize: 20 }}>💬</Text>
+                <Text style={s.actionLbl}>Chat{'\n'}Tutor</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {/* Vacinas */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Vacinas</Text>
-        <View style={styles.countBadge}><Text style={styles.countTxt}>{vaccines.length}</Text></View>
-      </View>
-      <View style={styles.card}>
-        {vaccines.length === 0 ? (
-          <Text style={styles.emptyText}>Nenhuma vacina registrada pelo tutor</Text>
-        ) : (
-          vaccines.map((v, i) => {
-            const late = v.next_dose_date && new Date(v.next_dose_date) < today;
-            const warn = v.next_dose_date && !late && new Date(v.next_dose_date) <= in30;
-            return (
-              <View key={v.id} style={[styles.vaccineRow, i > 0 && styles.rowBorder]}>
-                <Image
-                  source={late ? ICON_LATE : warn ? ICON_WARNING : ICON_CHECK}
-                  style={{ width: 22, height: 22 }} resizeMode="contain"
-                />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.vaccineName}>{v.name}</Text>
-                  <Text style={styles.vaccineDate}>Aplicada: {formatDate(v.applied_date)}</Text>
-                </View>
-                {v.next_dose_date && (
-                  <Text style={[styles.vaccineNext, late && { color: '#EF4444' }, warn && { color: '#D97706' }]}>
-                    Reforço: {formatDate(v.next_dose_date)}
-                  </Text>
-                )}
-              </View>
-            );
-          })
-        )}
-      </View>
-
-      {/* Histórico médico */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Histórico Médico</Text>
-        <View style={styles.countBadge}><Text style={styles.countTxt}>{records.length}</Text></View>
-      </View>
-      {records.length === 0 ? (
-        <View style={styles.card}><Text style={styles.emptyText}>Nenhum registro médico</Text></View>
-      ) : (
-        records.map(r => {
-          const cfg = TYPE_CONFIG[r.type] || TYPE_CONFIG.outro;
-          return (
-            <View key={r.id} style={styles.recordCard}>
-              <View style={styles.recordTop}>
-                <View style={[styles.recordIconWrap, { backgroundColor: cfg.bg }]}>
-                  <Image source={cfg.image} style={{ width: 20, height: 20 }} resizeMode="contain" />
-                </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.recordTitle}>{r.title}</Text>
-                  <Text style={styles.recordMeta}>
-                    {cfg.label} · {formatDate(r.date)}
-                    {r.veterinarian ? ` · ${r.veterinarian}` : ''}
-                  </Text>
-                </View>
-                <View style={[styles.roleBadge, r.created_by_role === 'vet' ? styles.roleBadgeVet : styles.roleBadgeTutor]}>
-                  <Image
-                    source={r.created_by_role === 'vet' ? ICON_MEDICAL : require('../../../assets/icon_profile.png')}
-                    style={{ width: 11, height: 11, marginRight: 3 }}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.roleBadgeTxt}>
-                    {r.created_by_role === 'vet' ? 'Vet' : 'Tutor'}
-                  </Text>
-                </View>
-              </View>
-              {r.description  && <Text style={styles.recordField}>{r.description}</Text>}
-              {r.diagnosis    && <Text style={styles.recordField}><Text style={styles.fieldLabel}>Diagnóstico: </Text>{r.diagnosis}</Text>}
-              {r.prescription && <Text style={styles.recordField}><Text style={styles.fieldLabel}>Prescrição: </Text>{r.prescription}</Text>}
-              {r.next_appointment && (
-                <Text style={[styles.recordField, { color: '#0EA5E9', fontWeight: '600' }]}>
-                  Próxima consulta: {formatDate(r.next_appointment)}
-                </Text>
-              )}
+        {/* ── SAÚDE DO TUTOR (notas do perfil do pet) ──── */}
+        {(pet.health_notes || pet.medications) && (
+          <View style={s.healthCard}>
+            <View style={s.healthCardHeader}>
+              <Image source={ICON_WARNING} style={{ width: 16, height: 16 }} resizeMode="contain" />
+              <Text style={s.healthCardTitle}>Informações de saúde registradas pelo tutor</Text>
             </View>
-          );
-        })
-      )}
-
-      {/* Histórico de peso */}
-      {weights.length > 0 && (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Histórico de Peso</Text>
-            <View style={styles.countBadge}><Text style={styles.countTxt}>{weights.length}</Text></View>
-          </View>
-          <View style={styles.card}>
-            {weights.map((w, i) => (
-              <View key={w.id} style={[styles.weightRow, i > 0 && styles.rowBorder]}>
-                <Text style={styles.weightDate}>{formatDate(w.date)}</Text>
-                <Text style={styles.weightVal}>{w.weight_kg} kg</Text>
-                {w.notes ? <Text style={styles.weightNote}>{w.notes}</Text> : null}
+            {pet.health_notes && (
+              <View style={s.healthRow}>
+                <Text style={s.healthLabel}>Condições / Alergias</Text>
+                <Text style={s.healthValue}>{pet.health_notes}</Text>
               </View>
-            ))}
-          </View>
-        </>
-      )}
-
-      {/* Agendamentos */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Agendamentos</Text>
-        <View style={styles.countBadge}><Text style={styles.countTxt}>{appointments.length}</Text></View>
-      </View>
-      {appointments.length === 0 ? (
-        <View style={styles.card}><Text style={styles.emptyText}>Nenhum agendamento cadastrado</Text></View>
-      ) : (
-        appointments.map(a => {
-          const isPast = new Date(a.scheduled_date) < new Date(new Date().toDateString());
-          const [y, m, d] = a.scheduled_date.split('-');
-          const dateStr = `${d}/${m}/${y}`;
-          const apptTypes = { consulta: { label: 'Consulta', color: '#0EA5E9', bg: '#EFF6FF' }, retorno: { label: 'Retorno', color: '#10B981', bg: '#DCFCE7' }, cirurgia: { label: 'Cirurgia', color: '#8B5CF6', bg: '#EDE9FE' }, exame: { label: 'Exame', color: '#F59E0B', bg: '#FEF3C7' }, outro: { label: 'Outro', color: '#64748B', bg: '#F1F5F9' } };
-          const cfg = apptTypes[a.type] || apptTypes.outro;
-          return (
-            <View key={a.id} style={[styles.apptCard, isPast && styles.apptCardPast]}>
-              <View style={styles.apptTop}>
-                <View style={[styles.apptTypeBadge, { backgroundColor: cfg.bg }]}>
-                  <Text style={[styles.apptTypeText, { color: cfg.color }]}>{cfg.label}</Text>
+            )}
+            {pet.medications && (
+              <View style={[s.healthRow, { borderTopWidth: pet.health_notes ? 1 : 0, borderTopColor: '#FEF9C3', marginTop: 8, paddingTop: 8 }]}>
+                <Image source={ICON_MEDICINE} style={{ width: 14, height: 14, marginRight: 6 }} resizeMode="contain" />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.healthLabel}>Medicamentos em uso</Text>
+                  <Text style={s.healthValue}>{pet.medications}</Text>
                 </View>
-                <Text style={styles.apptDate}>
-                  📅 {dateStr}{a.scheduled_time ? ` às ${a.scheduled_time}` : ''}
-                </Text>
-                {isPast && (
-                  <View style={styles.apptPastBadge}>
-                    <Text style={styles.apptPastText}>Passado</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── TABS ──────────────────────────────────────── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs} style={{ marginBottom: 4 }}>
+          {TABS.map(t => (
+            <TouchableOpacity key={t.key} onPress={() => setActiveTab(t.key)} style={[s.tab, activeTab === t.key && s.tabActive]} activeOpacity={0.8}>
+              <Text style={[s.tabTxt, activeTab === t.key && s.tabTxtActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ══ TAB: PRONTUÁRIO ═══════════════════════════ */}
+        {activeTab === 'prontuario' && (
+          <>
+            {/* Consultas estruturadas (vet_consultations) */}
+            <SectionHeader title="Consultas registradas" count={consultations.length} />
+            {consultations.length === 0 ? (
+              <View style={s.emptyCard}>
+                <Image source={ICON_MEDICAL} style={{ width: 40, height: 40, opacity: 0.2, marginBottom: 8 }} resizeMode="contain" />
+                <Text style={s.emptyTxt}>Nenhuma consulta registrada</Text>
+                <Text style={s.emptySub}>Use "Nova Consulta" para criar o primeiro prontuário</Text>
+              </View>
+            ) : consultations.map(c => {
+              const cfg = CONSULT_COLORS[c.type] || CONSULT_COLORS.outro;
+              return (
+                <View key={c.id} style={s.consultCard}>
+                  <View style={s.consultHeader}>
+                    <View style={[s.consultTypeBadge, { backgroundColor: cfg.bg }]}>
+                      <Text style={[s.consultTypeText, { color: cfg.color }]}>{cfg.label}</Text>
+                    </View>
+                    <Text style={s.consultDate}>{fmt(c.date)}</Text>
+                    {c.weight_at_visit && <Text style={s.consultWeight}>{c.weight_at_visit} kg</Text>}
+                    {c.temperature && <Text style={s.consultTemp}>🌡 {c.temperature}°C</Text>}
                   </View>
-                )}
+                  {c.chief_complaint && (
+                    <View style={s.consultField}>
+                      <Text style={s.consultFieldLabel}>Queixa</Text>
+                      <Text style={s.consultFieldValue}>{c.chief_complaint}</Text>
+                    </View>
+                  )}
+                  {c.diagnosis && (
+                    <View style={[s.consultField, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                      <Text style={[s.consultFieldLabel, { color: '#15803D' }]}>Diagnóstico</Text>
+                      <Text style={s.consultFieldValue}>{c.diagnosis}</Text>
+                    </View>
+                  )}
+                  {c.treatment_plan && (
+                    <View style={[s.consultField, { backgroundColor: '#EFF6FF', borderColor: '#BAE6FD' }]}>
+                      <Text style={[s.consultFieldLabel, { color: '#0369A1' }]}>Plano terapêutico</Text>
+                      <Text style={s.consultFieldValue}>{c.treatment_plan}</Text>
+                    </View>
+                  )}
+                  {c.notes && (
+                    <View style={s.consultField}>
+                      <Text style={s.consultFieldLabel}>Obs.</Text>
+                      <Text style={s.consultFieldValue}>{c.notes}</Text>
+                    </View>
+                  )}
+                  {!c.visible_to_owner && (
+                    <View style={s.privateTag}>
+                      <Text style={s.privateTagTxt}>🔒 Privado — tutor não vê</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* Histórico médico (medical_records — tutor + outros vets) */}
+            {records.length > 0 && (
+              <>
+                <SectionHeader title="Histórico médico geral" count={records.length} />
+                {records.map((r, i) => (
+                  <View key={r.id} style={s.recordCard}>
+                    <View style={s.recordRow}>
+                      <View style={[s.recordDot, { backgroundColor: r.created_by_role === 'vet' ? '#0EA5E9' : '#F59E0B' }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.recordTitle}>{r.title}</Text>
+                        <Text style={s.recordMeta}>
+                          {r.created_by_role === 'vet' ? '🩺 Vet' : '👤 Tutor'} · {fmt(r.date)}
+                          {r.veterinarian ? ` · Dr(a). ${r.veterinarian}` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    {r.description  && <Text style={s.recordDetail}>{r.description}</Text>}
+                    {r.diagnosis    && <Text style={s.recordDetail}><Text style={{ fontWeight: '700' }}>Diagnóstico: </Text>{r.diagnosis}</Text>}
+                    {r.prescription && <Text style={s.recordDetail}><Text style={{ fontWeight: '700', color: '#7C3AED' }}>Prescrição: </Text>{r.prescription}</Text>}
+                  </View>
+                ))}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ══ TAB: AGENDAMENTOS ═════════════════════════ */}
+        {activeTab === 'agendamentos' && (
+          <>
+            {upcomingAppts.length > 0 && (
+              <>
+                <SectionHeader title="Próximos / Pendentes" count={upcomingAppts.length} />
+                {upcomingAppts.map(a => {
+                  const cfg = CONSULT_COLORS[a.type] || CONSULT_COLORS.outro;
+                  const statusColor = STATUS_COLORS[a.status] || '#64748B';
+                  const [y, m, d] = (a.scheduled_date || '').split('-');
+                  return (
+                    <View key={a.id} style={[s.apptCard, { borderLeftColor: statusColor }]}>
+                      <View style={s.apptRow}>
+                        <View style={[s.apptTypeBadge, { backgroundColor: cfg.bg }]}>
+                          <Text style={[s.apptTypeTxt, { color: cfg.color }]}>{cfg.label}</Text>
+                        </View>
+                        <View style={[s.apptStatusBadge, { backgroundColor: statusColor + '20' }]}>
+                          <Text style={[s.apptStatusTxt, { color: statusColor }]}>{STATUS_LABELS[a.status] || a.status}</Text>
+                        </View>
+                        <Text style={s.apptDate}>{d}/{m}/{y}{a.scheduled_time ? ` às ${a.scheduled_time.slice(0,5)}` : ''}</Text>
+                      </View>
+                      {a.notes && <Text style={s.apptNote}>{a.notes}</Text>}
+                      {a.request_message && <Text style={[s.apptNote, { color: '#B45309' }]}>Mensagem: {a.request_message}</Text>}
+                      {a.status === 'pending_approval' && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#DCFCE7', borderRadius: 10, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#86EFAC' }}
+                            onPress={() => handleApptAction(a, 'confirm')}
+                          >
+                            <Text style={{ color: '#16A34A', fontWeight: '800', fontSize: 13 }}>✓ Confirmar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 10, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#FECACA' }}
+                            onPress={() => handleApptAction(a, 'cancel')}
+                          >
+                            <Text style={{ color: '#DC2626', fontWeight: '800', fontSize: 13 }}>✕ Recusar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {pastAppts.length > 0 && (
+              <>
+                <SectionHeader title="Anteriores" count={pastAppts.length} />
+                {pastAppts.map(a => {
+                  const cfg = CONSULT_COLORS[a.type] || CONSULT_COLORS.outro;
+                  const [y, m, d] = (a.scheduled_date || '').split('-');
+                  return (
+                    <View key={a.id} style={[s.apptCard, s.apptCardPast]}>
+                      <View style={s.apptRow}>
+                        <View style={[s.apptTypeBadge, { backgroundColor: cfg.bg }]}>
+                          <Text style={[s.apptTypeTxt, { color: cfg.color }]}>{cfg.label}</Text>
+                        </View>
+                        <Text style={[s.apptStatusTxt, { color: '#94A3B8' }]}>{STATUS_LABELS[a.status] || a.status}</Text>
+                        <Text style={s.apptDate}>{d}/{m}/{y}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {scheduleAppts.length === 0 && (
+              <View style={s.emptyCard}>
+                <Image source={ICON_CALENDAR} style={{ width: 40, height: 40, opacity: 0.2, marginBottom: 8 }} resizeMode="contain" />
+                <Text style={s.emptyTxt}>Nenhum agendamento</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('VetAddAppointment', { petId, petName: pet.name, tutorId: pet.user_id })} style={{ marginTop: 10 }}>
+                  <Text style={{ color: '#0EA5E9', fontWeight: '700', fontSize: 14 }}>+ Criar agendamento</Text>
+                </TouchableOpacity>
               </View>
-              {a.notes ? (
-                <Text style={styles.apptNotes}>{a.notes}</Text>
-              ) : null}
-            </View>
-          );
-        })
-      )}
+            )}
+          </>
+        )}
 
-      {/* Remover acesso — no painel clínico em mobile */}
-      {!isDesktop && (
-        <TouchableOpacity style={styles.removeBtn} onPress={handleRemove}>
-          <Text style={styles.removeBtnText}>Remover acesso a este paciente</Text>
+        {/* ══ TAB: VACINAS ══════════════════════════════ */}
+        {activeTab === 'vacinas' && (
+          <>
+            {lateVac > 0 && (
+              <View style={s.alertBox}>
+                <Text style={s.alertTxt}>⚠ {lateVac} vacina{lateVac > 1 ? 's' : ''} em atraso</Text>
+              </View>
+            )}
+            {warnVac > 0 && (
+              <View style={[s.alertBox, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                <Text style={[s.alertTxt, { color: '#B45309' }]}>⏰ {warnVac} vacina{warnVac > 1 ? 's' : ''} vencendo em 30 dias</Text>
+              </View>
+            )}
+            <SectionHeader title="Carteira de vacinação" count={vaccines.length} />
+            {vaccines.length === 0 ? (
+              <View style={s.emptyCard}><Text style={s.emptyTxt}>Nenhuma vacina registrada pelo tutor</Text></View>
+            ) : vaccines.map((v, i) => {
+              const late = v.next_dose_date && new Date(v.next_dose_date) < today;
+              const warn = v.next_dose_date && !late && new Date(v.next_dose_date) <= in30;
+              return (
+                <View key={v.id} style={s.vaccineCard}>
+                  <Image source={late ? ICON_LATE : warn ? ICON_WARNING : ICON_CHECK} style={{ width: 22, height: 22 }} resizeMode="contain" />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={s.vaccineName}>{v.name}</Text>
+                    <Text style={s.vaccineDate}>Aplicada: {fmt(v.applied_date)}</Text>
+                  </View>
+                  {v.next_dose_date && (
+                    <View style={[s.vaccineNext, { backgroundColor: late ? '#FFE4E6' : warn ? '#FEF9C3' : '#F0FDF4' }]}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: late ? '#DC2626' : warn ? '#B45309' : '#15803D' }}>
+                        Reforço: {fmt(v.next_dose_date)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </>
+        )}
+
+        {/* ══ TAB: EVOLUÇÃO ════════════════════════════ */}
+        {activeTab === 'evolucao' && (
+          <>
+            <SectionHeader
+              title="Evolução de peso"
+              count={weights.length}
+              action="+ Registrar"
+              onAction={() => setShowWeightModal(true)}
+            />
+
+            {/* Gráfico */}
+            {weights.length >= 2 && (
+              <View style={s.chartCard}>
+                <WeightChart records={[...weights].sort((a, b) => new Date(a.date) - new Date(b.date))} />
+              </View>
+            )}
+
+            {weights.length === 0 ? (
+              <View style={s.emptyCard}>
+                <Image source={ICON_WEIGHT} style={{ width: 40, height: 40, opacity: 0.2, marginBottom: 8 }} resizeMode="contain" />
+                <Text style={s.emptyTxt}>Nenhum registro de evolução</Text>
+                <TouchableOpacity onPress={() => setShowWeightModal(true)} style={{ marginTop: 10 }}>
+                  <Text style={{ color: '#0EA5E9', fontWeight: '700', fontSize: 14 }}>+ Registrar agora</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={s.weightCard}>
+                {weights.map((w, i) => {
+                  const prev = weights[i + 1];
+                  const diff = prev ? (w.weight_kg - prev.weight_kg).toFixed(1) : null;
+                  return (
+                    <View key={w.id} style={[s.weightRow, i > 0 && { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 10, paddingTop: 10 }]}>
+                      <Image source={ICON_WEIGHT} style={{ width: 18, height: 18, opacity: 0.5 }} resizeMode="contain" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={s.weightVal}>{w.weight_kg} kg{w.height_cm ? ` · ${w.height_cm} cm` : ''}</Text>
+                        <Text style={s.weightDate}>{fmt(w.date)}{w.notes ? ` · ${w.notes}` : ''}</Text>
+                      </View>
+                      {diff !== null && (
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: Number(diff) > 0 ? '#F59E0B' : Number(diff) < 0 ? '#0EA5E9' : '#94A3B8' }}>
+                          {Number(diff) > 0 ? `+${diff}` : diff} kg
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+
+        {/* Remover paciente */}
+        <TouchableOpacity style={s.removeBtn} onPress={() => setShowRemove(true)}>
+          <Text style={s.removeBtnTxt}>Remover acesso a este paciente</Text>
         </TouchableOpacity>
-      )}
 
-      {/* Modal confirmação remoção — web-compatible */}
-      <Modal visible={showRemoveModal} transparent animationType="fade" onRequestClose={() => setShowRemoveModal(false)}>
+        <View style={{ height: 30 }} />
+      </ScrollView>
+
+      {/* Modal registrar medidas */}
+      <Modal visible={showWeightModal} transparent animationType="slide" onRequestClose={() => setShowWeightModal(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} activeOpacity={1} onPress={() => setShowWeightModal(false)} />
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+          <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 }} />
+          <Text style={{ fontSize: 17, fontWeight: '900', color: '#1E293B', marginBottom: 18 }}>Registrar Evolução — {pet?.name}</Text>
+
+          <Text style={s.mLabel}>Peso (kg) *</Text>
+          <TextInput style={s.mInput} value={weightForm.weight_kg} onChangeText={v => setWeightForm(p => ({ ...p, weight_kg: v }))} placeholder="Ex: 4,5" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" />
+
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.mLabel}>Altura (cm)</Text>
+              <TextInput style={s.mInput} value={weightForm.height_cm} onChangeText={v => setWeightForm(p => ({ ...p, height_cm: v }))} placeholder="Ex: 28" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.mLabel}>Comprimento (cm)</Text>
+              <TextInput style={s.mInput} value={weightForm.length_cm} onChangeText={v => setWeightForm(p => ({ ...p, length_cm: v }))} placeholder="Ex: 45" placeholderTextColor="#9CA3AF" keyboardType="decimal-pad" />
+            </View>
+          </View>
+
+          <Text style={s.mLabel}>Observações</Text>
+          <TextInput style={[s.mInput, { height: 70, textAlignVertical: 'top' }]} value={weightForm.notes} onChangeText={v => setWeightForm(p => ({ ...p, notes: v }))} placeholder="Ex: Pós-cirurgia, em recuperação..." placeholderTextColor="#9CA3AF" multiline />
+
+          <TouchableOpacity
+            style={{ marginTop: 16, borderRadius: 16, overflow: 'hidden' }}
+            onPress={saveWeight} disabled={savingWeight || !weightForm.weight_kg}
+          >
+            <LinearGradient colors={['#0EA5E9', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: 'center' }}>
+              {savingWeight ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Salvar registro</Text>}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Modal remover */}
+      <Modal visible={showRemove} transparent animationType="fade" onRequestClose={() => setShowRemove(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 24, padding: 28, alignItems: 'center', width: '100%' }}>
-            <Text style={{ fontSize: 19, fontWeight: '800', color: '#1E293B', marginBottom: 8, textAlign: 'center' }}>
-              Remover paciente?
-            </Text>
+            <Text style={{ fontSize: 19, fontWeight: '800', color: '#1E293B', marginBottom: 8, textAlign: 'center' }}>Remover paciente?</Text>
             <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
-              Você perderá o acesso ao histórico de{' '}
-              <Text style={{ fontWeight: '700', color: '#1E293B' }}>{pet?.name}</Text>.
+              Você perderá acesso ao histórico de <Text style={{ fontWeight: '700', color: '#1E293B' }}>{pet?.name}</Text>.
             </Text>
-            <TouchableOpacity
-              style={{ width: '100%', backgroundColor: '#EF4444', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }}
-              onPress={confirmRemove}
-            >
+            <TouchableOpacity style={{ width: '100%', backgroundColor: '#EF4444', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 10 }} onPress={confirmRemove}>
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>Sim, remover</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={{ width: '100%', backgroundColor: '#F1F5F9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
-              onPress={() => setShowRemoveModal(false)}
-            >
+            <TouchableOpacity style={{ width: '100%', backgroundColor: '#F1F5F9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} onPress={() => setShowRemove(false)}>
               <Text style={{ color: '#64748B', fontSize: 15, fontWeight: '700' }}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </>
-  );
-
-  // ── Render final ────────────────────────────────────────────
-
-  if (isDesktop) {
-    return (
-      <View style={styles.desktopRoot}>
-        {/* Painel esquerdo: ficha do paciente (fixo, rolável) */}
-        <ScrollView
-          style={styles.desktopLeft}
-          contentContainerStyle={styles.desktopLeftContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {patientCard}
-        </ScrollView>
-
-        {/* Painel direito: prontuário clínico (rolável) */}
-        <ScrollView
-          style={styles.desktopRight}
-          contentContainerStyle={styles.desktopRightContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {clinicalPanel}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {patientCard}
-      {clinicalPanel}
-    </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F9FF' },
-  content: { paddingBottom: 40 },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F0F9FF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  content: { paddingBottom: 40 },
 
-  hero: { paddingTop: 28, paddingBottom: 28, paddingHorizontal: 24, alignItems: 'center', overflow: 'hidden' },
-  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)' },
-  petPhoto: { width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: 'rgba(255,255,255,0.6)', marginBottom: 12 },
-  petAvatarWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  petName: { fontSize: 26, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  petSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 12 },
-  heroBadges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
-  heroBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
-  heroBadgeTxt: { fontSize: 12, color: '#fff', fontWeight: '600' },
+  /* Hero */
+  hero: { paddingTop: 20, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
+  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  heroInner: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
+  avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)' },
+  avatarDefault: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
+  heroInfo: { flex: 1 },
+  heroName: { fontSize: 22, fontWeight: '900', color: '#fff', marginBottom: 3 },
+  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 8 },
+  heroPills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  heroPill: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  heroPillTxt: { fontSize: 11, color: '#fff', fontWeight: '600' },
+  heroStats: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14 },
+  heroStat: { flex: 1, alignItems: 'center' },
+  heroStatVal: { fontSize: 20, fontWeight: '900', color: '#fff' },
+  heroStatLbl: { fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginTop: 2 },
+  heroStatDiv: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 4 },
 
-  statusRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginTop: 16 },
-  pill: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10 },
-  pillIcon: { width: 20, height: 20 },
-  pillCount: { fontSize: 16, fontWeight: '800' },
-  pillLabel: { fontSize: 11, fontWeight: '600', flex: 1 },
+  /* Actions */
+  actions: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
+  actionBtn: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  actionBtnGrad: { paddingVertical: 14, alignItems: 'center', gap: 6 },
+  actionIcon: { width: 22, height: 22 },
+  actionLbl: { fontSize: 11, fontWeight: '800', color: '#fff', textAlign: 'center', lineHeight: 15 },
 
-  alertBanner: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    marginHorizontal: 20, marginTop: 12,
-    backgroundColor: '#FFF1F2', borderRadius: 16, padding: 16,
-    borderWidth: 1.5, borderColor: '#FECDD3',
-  },
-  alertTitle: { fontSize: 14, fontWeight: '700', color: '#DC2626', marginBottom: 4 },
-  alertItem: { fontSize: 12, color: '#9A3412', marginTop: 2 },
-
-  actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 20, marginTop: 16 },
-  actionBtnWrap: { borderRadius: 16, overflow: 'hidden' },
-  actionBtn: { flexDirection: 'row', paddingVertical: 14, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10 },
-  actionBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-
-  apptCard: {
-    backgroundColor: '#fff', borderRadius: 18, marginHorizontal: 20, marginBottom: 10, padding: 16,
-    shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 6, elevation: 2,
-    borderWidth: 1, borderColor: '#EDE9FE',
-  },
-  apptCardPast: { opacity: 0.6 },
-  apptTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  apptTypeBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  apptTypeText: { fontSize: 12, fontWeight: '700' },
-  apptDate: { fontSize: 13, color: '#374151', fontWeight: '600', flex: 1 },
-  apptPastBadge: { backgroundColor: '#F1F5F9', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  apptPastText: { fontSize: 10, color: '#94A3B8', fontWeight: '600' },
-  apptNotes: { fontSize: 13, color: '#64748B', marginTop: 8, lineHeight: 19 },
-
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, marginTop: 22, marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
-  countBadge: { backgroundColor: '#E0F2FE', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  countTxt: { fontSize: 12, fontWeight: '700', color: '#0369A1' },
-
-  card: {
-    backgroundColor: '#fff', borderRadius: 20, marginHorizontal: 20, padding: 16,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-    borderWidth: 1, borderColor: '#EFF6FF',
-  },
-  emptyText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 },
-  rowBorder: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 10 },
-
-  vaccineRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  vaccineName: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  vaccineDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-  vaccineNext: { fontSize: 12, fontWeight: '600', color: '#16A34A' },
-
-  recordCard: {
-    backgroundColor: '#fff', borderRadius: 20, marginHorizontal: 20, marginBottom: 10, padding: 16,
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-    borderWidth: 1, borderColor: '#EFF6FF',
-  },
-  recordTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
-  recordIconWrap: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  recordTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  recordMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
-  roleBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, flexDirection: 'row', alignItems: 'center' },
-  roleBadgeVet: { backgroundColor: '#EFF6FF' },
-  roleBadgeTutor: { backgroundColor: '#F1F5F9' },
-  roleBadgeTxt: { fontSize: 10, fontWeight: '700', color: '#64748B' },
-  recordField: { fontSize: 13, color: '#374151', marginTop: 4, lineHeight: 19 },
-  fieldLabel: { fontWeight: '700', color: '#1E293B' },
-
-  weightRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
-  weightDate: { fontSize: 13, color: '#64748B', flex: 1 },
-  weightVal: { fontSize: 15, fontWeight: '800', color: '#0EA5E9' },
-  weightNote: { fontSize: 12, color: '#94A3B8' },
-
-  removeBtn: { marginHorizontal: 20, marginTop: 24, borderRadius: 16, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#FECDD3' },
-  removeBtnText: { color: '#EF4444', fontWeight: '700', fontSize: 14 },
-
-  // ── Desktop two-column layout ────────────────────────────────
-  desktopRoot: {
-    flex: 1, flexDirection: 'row', backgroundColor: '#F0F9FF',
-    maxWidth: 1280, alignSelf: 'center', width: '100%',
-  },
-  desktopLeft: {
-    width: 400,
-    borderRightWidth: 1, borderRightColor: '#E0F2FE',
-    backgroundColor: '#F8FAFF',
-  },
-  desktopLeftContent: { paddingBottom: 40 },
-  desktopRight: { flex: 1, backgroundColor: '#F0F9FF' },
-  desktopRightContent: { paddingBottom: 60 },
-
-  // Card de saúde do pet
+  /* Health card (tutor notes) */
   healthCard: {
-    backgroundColor: '#fff', borderRadius: 20, marginHorizontal: 20, marginTop: 14, padding: 16,
-    borderWidth: 1.5, borderColor: '#FCE7F3',
-    shadowColor: '#EC4899', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
+    backgroundColor: '#FFFBEB', borderRadius: 16, marginHorizontal: 16, marginBottom: 8,
+    padding: 14, borderWidth: 1.5, borderColor: '#FDE68A',
   },
-  healthCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  healthCardTitle: { fontSize: 14, fontWeight: '800', color: '#1E293B' },
-  healthRow: { paddingTop: 10 },
-  healthRowBorder: { borderTopWidth: 1, borderTopColor: '#FEF3C7', marginTop: 10 },
-  healthLabel: { fontSize: 10, fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  healthValue: { fontSize: 13, color: '#374151', lineHeight: 20 },
+  healthCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  healthCardTitle: { fontSize: 12, fontWeight: '800', color: '#B45309', flex: 1 },
+  healthRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  healthLabel: { fontSize: 11, fontWeight: '700', color: '#B45309', marginBottom: 2 },
+  healthValue: { fontSize: 13, color: '#78350F', lineHeight: 18 },
+
+  /* Tabs */
+  tabs: { paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
+  tab: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 22, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#E0F2FE' },
+  tabActive: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
+  tabTxt: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+  tabTxtActive: { color: '#fff', fontWeight: '800' },
+
+  /* Section header */
+  secHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 16, marginBottom: 8 },
+  secTitle: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
+  badge: { backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeTxt: { fontSize: 12, fontWeight: '800', color: '#0EA5E9' },
+  secAction: { backgroundColor: '#0EA5E9', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 5 },
+  secActionTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
+
+  /* Consultation cards */
+  consultCard: {
+    backgroundColor: '#fff', borderRadius: 16, marginHorizontal: 16, marginBottom: 10,
+    padding: 14, borderWidth: 1.5, borderColor: '#E0F2FE',
+    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  consultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
+  consultTypeBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  consultTypeText: { fontSize: 12, fontWeight: '700' },
+  consultDate: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  consultWeight: { fontSize: 11, color: '#10B981', fontWeight: '700', backgroundColor: '#F0FDF4', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  consultTemp: { fontSize: 11, color: '#F59E0B', fontWeight: '700', backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  consultField: { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, marginTop: 6, borderWidth: 1, borderColor: '#E2E8F0' },
+  consultFieldLabel: { fontSize: 10, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  consultFieldValue: { fontSize: 13, color: '#1E293B', lineHeight: 19 },
+  privateTag: { backgroundColor: '#F1F5F9', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginTop: 8, alignSelf: 'flex-start' },
+  privateTagTxt: { fontSize: 10, color: '#94A3B8', fontWeight: '600' },
+
+  /* Record cards */
+  recordCard: {
+    backgroundColor: '#fff', borderRadius: 14, marginHorizontal: 16, marginBottom: 8,
+    padding: 12, borderWidth: 1, borderColor: '#E0F2FE',
+  },
+  recordRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  recordDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, flexShrink: 0 },
+  recordTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 2 },
+  recordMeta: { fontSize: 11, color: '#94A3B8' },
+  recordDetail: { fontSize: 13, color: '#374151', marginTop: 6, lineHeight: 18 },
+
+  /* Appointment cards */
+  apptCard: {
+    backgroundColor: '#fff', borderRadius: 14, marginHorizontal: 16, marginBottom: 8,
+    padding: 12, borderWidth: 1, borderColor: '#E0F2FE', borderLeftWidth: 4, borderLeftColor: '#0EA5E9',
+  },
+  apptCardPast: { opacity: 0.65, borderLeftColor: '#E2E8F0' },
+  apptRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  apptTypeBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  apptTypeTxt: { fontSize: 11, fontWeight: '700' },
+  apptStatusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  apptStatusTxt: { fontSize: 11, fontWeight: '700' },
+  apptDate: { fontSize: 12, color: '#374151', fontWeight: '600', marginLeft: 'auto' },
+  apptNote: { fontSize: 12, color: '#64748B', marginTop: 6, lineHeight: 17 },
+
+  /* Vaccine cards */
+  alertBox: { backgroundColor: '#FFF1F2', borderRadius: 12, marginHorizontal: 16, marginBottom: 8, padding: 12, borderWidth: 1, borderColor: '#FECACA' },
+  alertTxt: { fontSize: 13, color: '#BE123C', fontWeight: '700' },
+  vaccineCard: {
+    backgroundColor: '#fff', borderRadius: 14, marginHorizontal: 16, marginBottom: 8,
+    padding: 12, flexDirection: 'row', alignItems: 'center', gap: 0,
+    borderWidth: 1, borderColor: '#E0F2FE',
+  },
+  vaccineName: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 2 },
+  vaccineDate: { fontSize: 12, color: '#64748B' },
+  vaccineNext: { borderRadius: 10, padding: 6 },
+
+  /* Weight */
+  weightCard: { backgroundColor: '#fff', borderRadius: 16, marginHorizontal: 16, padding: 14, borderWidth: 1, borderColor: '#E0F2FE' },
+  weightRow: { flexDirection: 'row', alignItems: 'center' },
+  weightVal: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
+  weightDate: { fontSize: 12, color: '#94A3B8', marginTop: 1 },
+  chartCard: { backgroundColor: '#fff', borderRadius: 16, marginHorizontal: 16, marginBottom: 12, padding: 12, borderWidth: 1, borderColor: '#E0F2FE', overflow: 'hidden' },
+
+  // Modal medidas
+  mLabel: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 14 },
+  mInput: { backgroundColor: '#F8FAFC', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, borderWidth: 1.5, borderColor: '#E0F2FE', color: '#1E293B' },
+
+  /* Empty / remove */
+  emptyCard: { backgroundColor: '#fff', borderRadius: 16, marginHorizontal: 16, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: '#E0F2FE' },
+  emptyTxt: { fontSize: 14, fontWeight: '700', color: '#94A3B8', marginBottom: 4 },
+  emptySub: { fontSize: 12, color: '#BAE6FD', textAlign: 'center' },
+  removeBtn: { marginHorizontal: 16, marginTop: 24, paddingVertical: 14, alignItems: 'center' },
+  removeBtnTxt: { fontSize: 13, color: '#EF4444', fontWeight: '600' },
 });
