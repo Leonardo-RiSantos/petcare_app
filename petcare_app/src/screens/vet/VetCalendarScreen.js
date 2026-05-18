@@ -55,6 +55,36 @@ export default function VetCalendarScreen({ navigation, route }) {
   const [showDetail, setShowDetail] = useState(false);
   const [detailAppt, setDetailAppt] = useState(null);
 
+  // Disponibilidade semanal
+  const [showAvailModal, setShowAvailModal] = useState(false);
+  const [availability,   setAvailability]   = useState([]);
+  const [availForm,      setAvailForm]      = useState({ day_of_week: 1, start_time: '08:00', end_time: '18:00', slot_minutes: '30' });
+  const [savingAvail,    setSavingAvail]    = useState(false);
+
+  const fetchAvailability = async () => {
+    const { data } = await supabase.from('vet_availability').select('*').eq('vet_id', user.id).eq('active', true).order('day_of_week').order('start_time');
+    if (data) setAvailability(data);
+  };
+
+  const saveAvailSlot = async () => {
+    setSavingAvail(true);
+    await supabase.from('vet_availability').upsert({
+      vet_id:       user.id,
+      day_of_week:  parseInt(availForm.day_of_week),
+      start_time:   availForm.start_time,
+      end_time:     availForm.end_time,
+      slot_minutes: parseInt(availForm.slot_minutes) || 30,
+      active:       true,
+    }, { onConflict: 'vet_id,day_of_week,start_time' });
+    setSavingAvail(false);
+    fetchAvailability();
+  };
+
+  const deleteAvailSlot = async (id) => {
+    await supabase.from('vet_availability').update({ active: false }).eq('id', id);
+    fetchAvailability();
+  };
+
   const emptyForm = () => ({
     patient_name: '', scheduled_date: '', scheduled_time: '',
     duration_minutes: '30', type: 'consulta', status: 'scheduled', notes: '',
@@ -92,7 +122,7 @@ export default function VetCalendarScreen({ navigation, route }) {
     setRefreshing(false);
   };
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [view, pivot.toISOString().slice(0,7)]));
+  useFocusEffect(useCallback(() => { fetchData(); fetchAvailability(); }, [view, pivot.toISOString().slice(0,7)]));
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const apptsByDate = {};
@@ -221,6 +251,12 @@ export default function VetCalendarScreen({ navigation, route }) {
             </Text>
           </TouchableOpacity>
         ))}
+        <TouchableOpacity
+          style={{ backgroundColor: '#EDE9FE', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 }}
+          onPress={() => setShowAvailModal(true)}
+        >
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#7C3AED' }}>⏰ Disponib.</Text>
+        </TouchableOpacity>
         <View style={styles.pendingIndicator}>
           {appointments.filter(a => a.status === 'pending_approval').length > 0 && (
             <View style={styles.pendingBadge}>
@@ -432,6 +468,68 @@ export default function VetCalendarScreen({ navigation, route }) {
       </Modal>
 
       {/* ── Modal novo/editar ── */}
+      {/* ── Modal disponibilidade semanal ── */}
+      <Modal visible={showAvailModal} transparent animationType="slide" onRequestClose={() => setShowAvailModal(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} activeOpacity={1} onPress={() => setShowAvailModal(false)} />
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '85%' }}>
+          <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 }} />
+          <Text style={{ fontSize: 17, fontWeight: '900', color: '#1E293B', marginBottom: 4 }}>⏰ Disponibilidade semanal</Text>
+          <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 18 }}>Configure os horários que tutores podem solicitar agendamentos.</Text>
+
+          {/* Slots existentes */}
+          {availability.length > 0 && (
+            <View style={{ marginBottom: 16, gap: 8 }}>
+              {availability.map(a => (
+                <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDE9FE', borderRadius: 12, padding: 12, gap: 10 }}>
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: '#5B21B6' }}>
+                    {DAYS_PT[a.day_of_week]} · {a.start_time?.slice(0,5)} – {a.end_time?.slice(0,5)} ({a.slot_minutes}min)
+                  </Text>
+                  <TouchableOpacity onPress={() => deleteAvailSlot(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 13 }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Formulário novo slot */}
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 10 }}>Adicionar horário</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+            {DAYS_PT.map((d, i) => (
+              <TouchableOpacity
+                key={i}
+                style={{ flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center', backgroundColor: availForm.day_of_week === i ? '#7C3AED' : '#F1F5F9', borderWidth: availForm.day_of_week === i ? 0 : 1, borderColor: '#E2E8F0' }}
+                onPress={() => setAvailForm(p => ({ ...p, day_of_week: i }))}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: availForm.day_of_week === i ? '#fff' : '#64748B' }}>{d}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 4 }}>Início</Text>
+              <TextInput style={styles.availInput} value={availForm.start_time} onChangeText={v => setAvailForm(p => ({ ...p, start_time: v }))} placeholder="08:00" placeholderTextColor="#9CA3AF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 4 }}>Fim</Text>
+              <TextInput style={styles.availInput} value={availForm.end_time} onChangeText={v => setAvailForm(p => ({ ...p, end_time: v }))} placeholder="18:00" placeholderTextColor="#9CA3AF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, color: '#64748B', marginBottom: 4 }}>Slot (min)</Text>
+              <TextInput style={styles.availInput} value={availForm.slot_minutes} onChangeText={v => setAvailForm(p => ({ ...p, slot_minutes: v }))} placeholder="30" placeholderTextColor="#9CA3AF" keyboardType="numeric" />
+            </View>
+          </View>
+          <TouchableOpacity
+            style={{ borderRadius: 14, overflow: 'hidden' }}
+            onPress={saveAvailSlot} disabled={savingAvail}
+          >
+            <LinearGradient colors={['#7C3AED', '#A78BFA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 14, alignItems: 'center' }}>
+              {savingAvail ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Salvar horário</Text>}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowModal(false)}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
@@ -520,6 +618,7 @@ const styles = StyleSheet.create({
   pendingIndicator: { flex: 1, alignItems: 'flex-end', justifyContent: 'center' },
   pendingBadge: { backgroundColor: '#EDE9FE', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   pendingBadgeTxt: { fontSize: 11, color: '#7C3AED', fontWeight: '700' },
+  availInput: { backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, borderWidth: 1.5, borderColor: '#E0F2FE', color: '#1E293B' },
 
   // Month
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },

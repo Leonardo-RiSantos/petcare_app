@@ -71,11 +71,7 @@ export default function ProfileScreen({ navigation }) {
   const [vetInputs, setVetInputs] = useState({ specialty: '', clinic_name: '', clinic_address: '' });
   const [savingVet, setSavingVet] = useState(false);
   // Configurações clínica (vet)
-  const [vetSettings, setVetSettings] = useState({ chat_enabled: false, booking_enabled: false, booking_slug: '', signature_url: '' });
-  const [bookingSlugInput, setBookingSlugInput] = useState('');
-  const [bookingSlugEditing, setBookingSlugEditing] = useState(false);
-  const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [vetSettings, setVetSettings] = useState({ chat_enabled: false, signature_url: '' });
   const [uploadingSignature, setUploadingSignature] = useState(false);
 
   const fetchData = async () => {
@@ -89,7 +85,7 @@ export default function ProfileScreen({ navigation }) {
     if (isVet) {
       // Stats do veterinário: pacientes + consultas + receita do mês
       baseQueries.push(
-        supabase.from('vet_profiles').select('specialty, clinic_name, clinic_address, chat_enabled, booking_enabled, booking_slug, signature_url').eq('id', user.id).single(),
+        supabase.from('vet_profiles').select('specialty, clinic_name, clinic_address, chat_enabled, signature_url').eq('id', user.id).single(),
         supabase.from('pet_vet_links').select('id', { count: 'exact' }).eq('vet_id', user.id).eq('status', 'active'),
         supabase.from('vet_unlinked_patients').select('id', { count: 'exact' }).eq('vet_id', user.id),
         supabase.from('vet_consultations').select('id', { count: 'exact' }).eq('vet_id', user.id),
@@ -120,9 +116,8 @@ export default function ProfileScreen({ navigation }) {
         const vd = { specialty: vetRes.data.specialty || '', clinic_name: vetRes.data.clinic_name || '', clinic_address: vetRes.data.clinic_address || '' };
         setVetData(vd);
         setVetInputs(vd);
-        const vs = { chat_enabled: !!vetRes.data.chat_enabled, booking_enabled: !!vetRes.data.booking_enabled, booking_slug: vetRes.data.booking_slug || '', signature_url: vetRes.data.signature_url || '' };
+        const vs = { chat_enabled: !!vetRes.data.chat_enabled, signature_url: vetRes.data.signature_url || '' };
         setVetSettings(vs);
-        setBookingSlugInput(vs.booking_slug);
       }
       const totalPatients = (linkedRes.count ?? 0) + (avulsosRes.count ?? 0);
       const monthRevenue = (billingRes.data ?? []).reduce((s, b) => s + Number(b.amount), 0);
@@ -206,16 +201,6 @@ export default function ProfileScreen({ navigation }) {
     const updated = { ...vetSettings, [key]: value };
     setVetSettings(updated);
     await supabase.from('vet_profiles').update({ [key]: value }).eq('id', user.id);
-  };
-
-  const saveBookingSlug = async () => {
-    const slug = bookingSlugInput.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    if (!slug) return;
-    setSavingSettings(true);
-    const { error } = await supabase.from('vet_profiles').update({ booking_slug: slug }).eq('id', user.id);
-    setSavingSettings(false);
-    if (error) { Alert.alert('Erro', error.message.includes('unique') ? 'Este link já está em uso. Escolha outro.' : error.message); }
-    else { setVetSettings(p => ({ ...p, booking_slug: slug })); setBookingSlugInput(slug); }
   };
 
   const handleSignatureUpload = async () => {
@@ -517,84 +502,6 @@ export default function ProfileScreen({ navigation }) {
                 trackColor={{ true: '#0EA5E9', false: '#E2E8F0' }}
               />
             </View>
-
-            {/* Agendamento online */}
-            <View style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 14 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.settingLabel}>Página de agendamento</Text>
-                <Text style={styles.settingDesc}>Tutores externos podem solicitar consultas</Text>
-              </View>
-              <Switch
-                value={vetSettings.booking_enabled}
-                onValueChange={v => toggleVetSetting('booking_enabled', v)}
-                trackColor={{ true: '#0EA5E9', false: '#E2E8F0' }}
-              />
-            </View>
-            {vetSettings.booking_enabled && (
-              <View style={{ marginTop: 12, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E0F2FE' }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748B', letterSpacing: 0.5, marginBottom: 8 }}>LINK PÚBLICO DA CLÍNICA</Text>
-
-                {/* Link copiável */}
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: bookingLinkCopied ? '#86EFAC' : '#BAE6FD', gap: 8 }}
-                  onPress={async () => {
-                    const slug = vetSettings.booking_slug;
-                    if (!slug) return;
-                    const url = `https://petcare-plus-nu.vercel.app/agendar/${slug}`;
-                    try {
-                      if (Platform.OS === 'web') { await navigator.clipboard.writeText(url); }
-                      else { await require('expo-clipboard').setStringAsync(url); }
-                      setBookingLinkCopied(true);
-                      setTimeout(() => setBookingLinkCopied(false), 2500);
-                    } catch (_) {}
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={{ flex: 1, fontSize: 12, color: '#0284C7', fontWeight: '600' }} numberOfLines={1}>
-                    petcare-plus-nu.vercel.app/agendar/<Text style={{ fontWeight: '900' }}>{vetSettings.booking_slug || '...'}</Text>
-                  </Text>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: bookingLinkCopied ? '#16A34A' : '#0EA5E9' }}>
-                    {bookingLinkCopied ? '✓ Copiado' : '📋 Copiar'}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Editar slug */}
-                {!bookingSlugEditing ? (
-                  <TouchableOpacity onPress={() => setBookingSlugEditing(true)} style={{ marginTop: 8, alignSelf: 'flex-start' }}>
-                    <Text style={{ fontSize: 12, color: '#0EA5E9', fontWeight: '600' }}>✏️ Editar endereço</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <TextInput
-                      style={[styles.contactInput, { flex: 1, paddingVertical: 10, fontSize: 13 }]}
-                      value={bookingSlugInput}
-                      onChangeText={v => setBookingSlugInput(v.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-                      placeholder="ex: clinica-pet-saude"
-                      placeholderTextColor="#9CA3AF"
-                      autoCapitalize="none"
-                      autoFocus
-                    />
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#0EA5E9', borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center' }}
-                      onPress={async () => { await saveBookingSlug(); setBookingSlugEditing(false); }}
-                      disabled={savingSettings}
-                    >
-                      {savingSettings ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Salvar</Text>}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center' }}
-                      onPress={() => { setBookingSlugInput(vetSettings.booking_slug); setBookingSlugEditing(false); }}
-                    >
-                      <Text style={{ color: '#64748B', fontWeight: '700' }}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 8, lineHeight: 16 }}>
-                  Qualquer tutor com este link pode solicitar uma consulta, mesmo sem conta no app.
-                </Text>
-              </View>
-            )}
 
             {/* Assinatura digital */}
             <View style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 14, flexDirection: 'column', alignItems: 'flex-start', gap: 10 }]}>

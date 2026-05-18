@@ -45,6 +45,7 @@ import VetChatScreen              from '../screens/vet/VetChatScreen';
 
 // Tutor (novas)
 import TutorChatScreen            from '../screens/app/TutorChatScreen';
+import TutorBookVetScreen         from '../screens/app/TutorBookVetScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -208,6 +209,7 @@ function TutorStack() {
       <Stack.Screen name="ManageViewers"    component={ManageViewersScreen} options={{ title: 'Compartilhar Acesso' }} />
       <Stack.Screen name="ExpenseReport"    component={ExpenseReportScreen} options={{ title: 'Relatório de Gastos' }} />
       <Stack.Screen name="TutorChat"        component={TutorChatScreen}     options={{ title: 'Chat com Vet' }} />
+      <Stack.Screen name="TutorBookVet"    component={TutorBookVetScreen}  options={{ title: 'Solicitar Agendamento' }} />
     </Stack.Navigator>
   );
 }

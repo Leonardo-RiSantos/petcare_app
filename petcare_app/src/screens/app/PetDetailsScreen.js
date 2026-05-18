@@ -249,6 +249,7 @@ export default function PetDetailsScreen({ route, navigation }) {
   // Modais web-compatible
   const [removeVetLink, setRemoveVetLink] = useState(null);
   const [selectedAppt, setSelectedAppt] = useState(null);
+  const [vetActionLink, setVetActionLink] = useState(null); // popup de ações do vet
   // Modal solicitação de consulta
   const [showApptRequest, setShowApptRequest] = useState(false);
   const [apptRequestVet, setApptRequestVet] = useState(null);
@@ -935,27 +936,25 @@ export default function PetDetailsScreen({ route, navigation }) {
                   {vetLinks.map(link => {
                     const vet = link.vet_profiles;
                     return (
-                      <View key={link.id} style={styles.vetLinkMiniCard}>
+                      <TouchableOpacity
+                        key={link.id}
+                        style={styles.vetLinkMiniCard}
+                        onPress={() => setVetActionLink(link)}
+                        activeOpacity={0.75}
+                      >
                         <View style={styles.vetLinkMiniIcon}>
                           <Image source={require('../../../assets/icon_medical.png')} style={{ width: 18, height: 18 }} resizeMode="contain" />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.vetLinkMiniName}>{vet?.full_name || 'Veterinário'}</Text>
-                          <Text style={styles.vetLinkMiniCrm}>CRM {vet?.crm}/{vet?.estado}{vet?.specialty ? ` · ${vet.specialty}` : ''}</Text>
+                          <Text style={styles.vetLinkMiniCrm}>
+                            CRM {vet?.crm}/{vet?.estado}{vet?.specialty ? ` · ${vet.specialty}` : ''}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: '#0EA5E9', marginTop: 2, fontWeight: '600' }}>
+                            Toque para opções →
+                          </Text>
                         </View>
-                        {vet?.chat_enabled && (
-                          <TouchableOpacity
-                            style={{ backgroundColor: '#FEF3C7', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8 }}
-                            onPress={() => navigation.navigate('TutorChat', { petId, petName: pet.name, vetId: link.vet_id, vetName: vet.full_name })}
-                            hitSlop={{top:4,bottom:4,left:4,right:4}}
-                          >
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#D97706' }}>💬 Chat</Text>
-                          </TouchableOpacity>
-                        )}
-                        <TouchableOpacity onPress={() => handleRemoveVet(link)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-                          <Image source={require('../../../assets/icon_trash.png')} style={{ width: 18, height: 18, tintColor: '#EF4444' }} resizeMode="contain" />
-                        </TouchableOpacity>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -1387,6 +1386,90 @@ export default function PetDetailsScreen({ route, navigation }) {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* ── Popup ações do veterinário ── */}
+      <Modal visible={!!vetActionLink} transparent animationType="slide" onRequestClose={() => setVetActionLink(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} activeOpacity={1} onPress={() => setVetActionLink(null)} />
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+          <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 18 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center' }}>
+              <Image source={require('../../../assets/icon_medical.png')} style={{ width: 24, height: 24 }} resizeMode="contain" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#1E293B' }}>
+                Dr(a). {vetActionLink?.vet_profiles?.full_name || 'Veterinário'}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748B' }}>
+                CRMV {vetActionLink?.vet_profiles?.crm}/{vetActionLink?.vet_profiles?.estado}
+                {vetActionLink?.vet_profiles?.specialty ? ` · ${vetActionLink.vet_profiles.specialty}` : ''}
+              </Text>
+            </View>
+          </View>
+
+          {/* Chat */}
+          {vetActionLink?.vet_profiles?.chat_enabled && (
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FEF9C3', borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#FDE68A' }}
+              onPress={() => {
+                setVetActionLink(null);
+                navigation.navigate('TutorChat', {
+                  petId,
+                  petName: pet.name,
+                  vetId: vetActionLink.vet_id,
+                  vetName: vetActionLink.vet_profiles.full_name,
+                });
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 24 }}>💬</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#92400E' }}>Chat com o veterinário</Text>
+                <Text style={{ fontSize: 12, color: '#B45309' }}>Mensagens em tempo real</Text>
+              </View>
+              <Text style={{ color: '#D97706', fontSize: 18 }}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Solicitar agendamento */}
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#BAE6FD' }}
+            onPress={() => {
+              setVetActionLink(null);
+              navigation.navigate('TutorBookVet', {
+                petId,
+                petName: pet.name,
+                vetId: vetActionLink.vet_id,
+                vetName: vetActionLink.vet_profiles?.full_name || 'Veterinário',
+              });
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 24 }}>📅</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0369A1' }}>Solicitar agendamento</Text>
+              <Text style={{ fontSize: 12, color: '#0EA5E9' }}>Ver horários disponíveis e solicitar consulta</Text>
+            </View>
+            <Text style={{ color: '#0EA5E9', fontSize: 18 }}>›</Text>
+          </TouchableOpacity>
+
+          {/* Remover vínculo */}
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FFF1F2', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#FECDD3' }}
+            onPress={() => {
+              setVetActionLink(null);
+              setTimeout(() => setRemoveVetLink(vetActionLink), 300);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 24 }}>🗑️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#BE123C' }}>Remover veterinário</Text>
+              <Text style={{ fontSize: 12, color: '#E11D48' }}>Revogar acesso ao histórico do pet</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       </Modal>
 
       <Modal visible={!!removeVetLink} transparent animationType="fade" onRequestClose={() => setRemoveVetLink(null)}>

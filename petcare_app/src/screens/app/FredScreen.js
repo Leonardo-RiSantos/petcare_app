@@ -6,16 +6,23 @@ import {
   SafeAreaView, Image,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const FRED_URL = 'https://wqabzvataiellbttoojn.supabase.co/functions/v1/fred-chat';
-
 const FRED_IMG = require('../../../assets/icon_fred.png');
 
-const QUICK_QUESTIONS = [
+const QUICK_QUESTIONS_TUTOR = [
   'Como estão as vacinas dos meus pets?',
   'Tem algum alerta importante hoje?',
   'Como está o peso do meu pet?',
   'Quanto gastei este mês?',
+];
+
+const QUICK_QUESTIONS_VET = [
+  'Quais consultas tenho hoje?',
+  'Algum paciente com vacina atrasada?',
+  'Como organizar minha agenda semanal?',
+  'Quais cuidados pós-cirúrgicos recomendar?',
 ];
 
 function Message({ item }) {
@@ -51,12 +58,16 @@ function TypingIndicator() {
 
 export default function FredScreen() {
   const navigation = useNavigation();
+  const { isVet } = useAuth();
+
+  const greeting = isVet
+    ? 'Olá, doutor(a)! Sou o Fred 🐾 Estou aqui para ajudar com sua agenda, lembretes de pacientes, protocolos clínicos e cuidados veterinários. Como posso ajudar hoje?'
+    : 'Oi! Eu sou o Fred 🐾 Posso te ajudar com cuidados, saúde, vacinas e curiosidades sobre seus pets. Como posso te ajudar hoje?';
+
+  const QUICK_QUESTIONS = isVet ? QUICK_QUESTIONS_VET : QUICK_QUESTIONS_TUTOR;
+
   const [messages, setMessages] = useState([
-    {
-      id: '0',
-      role: 'assistant',
-      content: 'Oi! Eu sou o Fred 🐾 Posso te ajudar com informações sobre seus pets, vacinas, peso e muito mais. Como posso te ajudar hoje?',
-    },
+    { id: '0', role: 'assistant', content: greeting },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,7 +102,7 @@ export default function FredScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ message: userText, history }),
+        body: JSON.stringify({ message: userText, history, isVet: !!isVet }),
       });
 
       if (!res.ok) {
