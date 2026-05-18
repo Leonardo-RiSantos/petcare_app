@@ -284,17 +284,14 @@ export default function VetPatientScreen({ route, navigation }) {
             </View>
             {pet.health_notes && (
               <View style={s.healthRow}>
-                <Text style={s.healthLabel}>Condições / Alergias</Text>
+                <Text style={s.healthLabel}>🌿 Condições / Alergias</Text>
                 <Text style={s.healthValue}>{pet.health_notes}</Text>
               </View>
             )}
             {pet.medications && (
-              <View style={[s.healthRow, { borderTopWidth: pet.health_notes ? 1 : 0, borderTopColor: '#FEF9C3', marginTop: 8, paddingTop: 8 }]}>
-                <Image source={ICON_MEDICINE} style={{ width: 14, height: 14, marginRight: 6 }} resizeMode="contain" />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.healthLabel}>Medicamentos em uso</Text>
-                  <Text style={s.healthValue}>{pet.medications}</Text>
-                </View>
+              <View style={[s.healthRow, { borderTopWidth: pet.health_notes ? 1 : 0, borderTopColor: '#FEF9C3', marginTop: 10, paddingTop: 10 }]}>
+                <Text style={s.healthLabel}>💊 Medicamentos em uso</Text>
+                <Text style={s.healthValue}>{pet.medications}</Text>
               </View>
             )}
           </View>
@@ -659,9 +656,9 @@ const s = StyleSheet.create({
   },
   healthCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   healthCardTitle: { fontSize: 12, fontWeight: '800', color: '#B45309', flex: 1 },
-  healthRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  healthLabel: { fontSize: 11, fontWeight: '700', color: '#B45309', marginBottom: 2 },
-  healthValue: { fontSize: 13, color: '#78350F', lineHeight: 18 },
+  healthRow: { flexDirection: 'column' },
+  healthLabel: { fontSize: 11, fontWeight: '800', color: '#B45309', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 },
+  healthValue: { fontSize: 14, color: '#78350F', lineHeight: 20 },
 
   /* Tabs */
   tabs: { paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
