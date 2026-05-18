@@ -1,19 +1,13 @@
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 /**
  * Upload universal — funciona em React Native (iOS/Android) e Web.
- * Usa fetch+blob em vez de FormData (FormData com {uri,name,type} só funciona no native).
- *
- * @param {string} uri  - URI local da imagem (file://, content://, blob:, data:)
- * @param {string} bucket - Nome do bucket no Supabase Storage
- * @param {string} path   - Caminho dentro do bucket (ex: "user123/avatar.jpg")
- * @returns {string} publicUrl com cache-buster
  */
 export async function uploadImage(uri, bucket, path) {
   const response = await fetch(uri);
   const blob = await response.blob();
 
-  // Detecta o content-type real do arquivo (jpeg, png, webp, etc.)
   const contentType = blob.type && blob.type !== 'application/octet-stream'
     ? blob.type
     : 'image/jpeg';
@@ -25,15 +19,48 @@ export async function uploadImage(uri, bucket, path) {
   if (error) throw error;
 
   const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
-  // Cache-buster para forçar recarga da imagem após atualização
   return `${publicUrl}?t=${Date.now()}`;
 }
 
 /**
- * Abre o seletor de imagem da galeria.
- * Compatível com Expo SDK 52+ (MediaType.Images substitui o deprecado MediaTypeOptions.Images).
+ * Abre seletor de imagem.
+ * No Web usa <input type="file"> nativo para garantir que o browser
+ * abra o seletor (o expo-image-picker perde o contexto de gesto em chains async).
  */
-export async function pickImage() {
+export function pickImage(options = {}) {
+  if (Platform.OS === 'web') {
+    return pickImageWeb({ accept: 'image/*', ...options });
+  }
+  return pickImageNative(options);
+}
+
+function pickImageWeb({ accept = 'image/*' } = {}) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      document.body.removeChild(input);
+      if (!file) { resolve(null); return; }
+      // Cria object URL para o arquivo — funciona como URI no uploadImage()
+      resolve(URL.createObjectURL(file));
+    };
+
+    input.oncancel = () => {
+      document.body.removeChild(input);
+      resolve(null);
+    };
+
+    // Alguns browsers precisam que o input esteja no DOM antes de .click()
+    setTimeout(() => input.click(), 0);
+  });
+}
+
+async function pickImageNative(options = {}) {
   const ImagePicker = await import('expo-image-picker');
 
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -41,9 +68,9 @@ export async function pickImage() {
 
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.75,
+    allowsEditing: options.allowsEditing !== false,
+    aspect: options.aspect || [1, 1],
+    quality: options.quality || 0.75,
   });
 
   if (result.canceled || !result.assets?.[0]) return null;
