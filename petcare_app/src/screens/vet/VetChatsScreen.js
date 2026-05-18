@@ -123,7 +123,7 @@ export default function VetChatsScreen({ navigation }) {
             </Text>
             <Text style={styles.time}>{timeAgo(item.lastTime)}</Text>
           </View>
-          <Text style={styles.tutorName}>{item.tutorName}</Text>
+          <Text style={styles.tutorName}>👤 {item.tutorName}</Text>
           <Text style={[styles.lastMsg, item.unread > 0 && styles.lastMsgUnread]} numberOfLines={1}>
             {item.lastMessage}
           </Text>

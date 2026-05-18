@@ -35,6 +35,7 @@ const TYPE_COLORS = {
 export default function VetDashboardScreen({ navigation }) {
   const { user, vetProfile } = useAuth();
   const [linkedPets,        setLinkedPets]        = useState([]);
+  const [tutorNames,        setTutorNames]        = useState({}); // pet_id → tutor name
   const [unlinkedPatients,  setUnlinkedPatients]  = useState([]);
   const [todayAppts,        setTodayAppts]        = useState([]);
   const [pendingBilling,    setPendingBilling]    = useState(0);
@@ -55,7 +56,7 @@ export default function VetDashboardScreen({ navigation }) {
 
     const [linkedRes, unlinkedRes, apptRes, billingRes, unreadRes] = await Promise.all([
       supabase.from('pet_vet_links')
-        .select('pet_id, pets(id, name, species, breed, birth_date, photo_url, weight_kg)')
+        .select('pet_id, tutor_id, pets(id, name, species, breed, birth_date, photo_url, weight_kg)')
         .eq('vet_id', user.id),
       supabase.from('vet_unlinked_patients')
         .select('id, name, species, breed, owner_name, weight_kg, photo_url')
@@ -77,7 +78,22 @@ export default function VetDashboardScreen({ navigation }) {
         .is('read_at', null),
     ]);
 
-    if (linkedRes.data)   setLinkedPets(linkedRes.data.map(l => l.pets).filter(Boolean));
+    if (linkedRes.data) {
+      setLinkedPets(linkedRes.data.map(l => l.pets).filter(Boolean));
+      // Busca nome dos tutores
+      const tutorIds = [...new Set(linkedRes.data.map(l => l.tutor_id).filter(Boolean))];
+      if (tutorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles').select('id, full_name').in('id', tutorIds);
+        const nameMap = {};
+        // mapeia pet_id → tutor name
+        linkedRes.data.forEach(l => {
+          const p = (profiles || []).find(pr => pr.id === l.tutor_id);
+          if (l.pets?.id) nameMap[l.pets.id] = p?.full_name || '';
+        });
+        setTutorNames(nameMap);
+      }
+    }
     if (unlinkedRes.data) setUnlinkedPatients(unlinkedRes.data);
     if (apptRes.data)     setTodayAppts(apptRes.data);
 
@@ -328,6 +344,9 @@ export default function VetDashboardScreen({ navigation }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.patientName}>{pet.name}</Text>
             <Text style={styles.patientSub}>{pet.species}{pet.breed ? ` · ${pet.breed}` : ''}{pet.weight_kg ? ` · ${pet.weight_kg}kg` : ''}</Text>
+            {tutorNames[pet.id] ? (
+              <Text style={styles.patientTutor}>👤 {tutorNames[pet.id]}</Text>
+            ) : null}
           </View>
           <View style={styles.linkedBadge}><Text style={styles.linkedTxt}>Vinculado</Text></View>
           <Text style={styles.arrow}>›</Text>
@@ -517,7 +536,8 @@ const styles = StyleSheet.create({
   petAvatar:        { width: 50, height: 50, borderRadius: 25, borderWidth: 2, borderColor: '#BFDBFE' },
   petAvatarDefault: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
   patientName: { fontSize: 15, fontWeight: '800', color: '#1E293B', marginBottom: 2 },
-  patientSub:  { fontSize: 12, color: '#64748B' },
+  patientSub:   { fontSize: 12, color: '#64748B' },
+  patientTutor: { fontSize: 11, color: '#0EA5E9', fontWeight: '600', marginTop: 2 },
   linkedBadge: { backgroundColor: '#DCFCE7', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
   linkedTxt:   { fontSize: 10, fontWeight: '700', color: '#16A34A' },
   arrow:       { fontSize: 20, color: '#BAE6FD' },
