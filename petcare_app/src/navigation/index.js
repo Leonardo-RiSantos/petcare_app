@@ -42,6 +42,7 @@ import VetConsultationScreen      from '../screens/vet/VetConsultationScreen';
 import VetAddUnlinkedPatientScreen from '../screens/vet/VetAddUnlinkedPatientScreen';
 import VetUnlinkedPatientScreen   from '../screens/vet/VetUnlinkedPatientScreen';
 import VetChatScreen              from '../screens/vet/VetChatScreen';
+import VetChatsScreen             from '../screens/vet/VetChatsScreen';
 
 // Tutor (novas)
 import TutorChatScreen            from '../screens/app/TutorChatScreen';
@@ -277,6 +278,7 @@ function VetStack() {
       <Stack.Screen name="VetAddUnlinkedPatient"   component={VetAddUnlinkedPatientScreen}  options={{ title: 'Novo Paciente' }} />
       <Stack.Screen name="VetUnlinkedPatient"      component={VetUnlinkedPatientScreen}     options={{ title: 'Paciente da Clínica' }} />
       <Stack.Screen name="VetChat"                 component={VetChatScreen}                options={{ title: 'Chat' }} />
+      <Stack.Screen name="VetChats"                component={VetChatsScreen}               options={{ title: 'Conversas' }} />
     </Stack.Navigator>
   );
 }

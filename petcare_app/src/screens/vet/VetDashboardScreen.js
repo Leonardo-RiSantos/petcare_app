@@ -39,6 +39,7 @@ export default function VetDashboardScreen({ navigation }) {
   const [todayAppts,        setTodayAppts]        = useState([]);
   const [pendingBilling,    setPendingBilling]    = useState(0);
   const [monthRevenue,      setMonthRevenue]      = useState(0);
+  const [unreadChats,       setUnreadChats]       = useState(0);
   const [loading,           setLoading]           = useState(true);
   const [refreshing,        setRefreshing]        = useState(false);
   const [search,            setSearch]            = useState('');
@@ -52,7 +53,7 @@ export default function VetDashboardScreen({ navigation }) {
     const todayISO    = new Date().toISOString().slice(0, 10);
     const firstMonth  = `${todayISO.slice(0, 7)}-01`;
 
-    const [linkedRes, unlinkedRes, apptRes, billingRes] = await Promise.all([
+    const [linkedRes, unlinkedRes, apptRes, billingRes, unreadRes] = await Promise.all([
       supabase.from('pet_vet_links')
         .select('pet_id, pets(id, name, species, breed, birth_date, photo_url, weight_kg)')
         .eq('vet_id', user.id),
@@ -69,6 +70,11 @@ export default function VetDashboardScreen({ navigation }) {
         .select('amount, status')
         .eq('vet_id', user.id)
         .gte('created_at', firstMonth),
+      supabase.from('vet_chat_messages')
+        .select('id', { count: 'exact' })
+        .eq('vet_id', user.id)
+        .eq('sender_role', 'tutor')
+        .is('read_at', null),
     ]);
 
     if (linkedRes.data)   setLinkedPets(linkedRes.data.map(l => l.pets).filter(Boolean));
@@ -79,6 +85,7 @@ export default function VetDashboardScreen({ navigation }) {
       setPendingBilling(billingRes.data.filter(b => b.status === 'pending').reduce((s, b) => s + (b.amount || 0), 0));
       setMonthRevenue(billingRes.data.filter(b => b.status === 'paid').reduce((s, b) => s + (b.amount || 0), 0));
     }
+    setUnreadChats(unreadRes.count ?? 0);
 
     setLoading(false);
     setRefreshing(false);
@@ -210,6 +217,29 @@ export default function VetDashboardScreen({ navigation }) {
           <Text style={styles.statLabel}>Pendente</Text>
         </View>
       </View>
+
+      {/* Chat */}
+      <TouchableOpacity
+        style={styles.chatBtn}
+        onPress={() => navigation.navigate('VetChats')}
+        activeOpacity={0.82}
+      >
+        <View style={styles.chatBtnLeft}>
+          <Text style={styles.chatBtnIcon}>💬</Text>
+          <View>
+            <Text style={styles.chatBtnTitle}>Conversas com tutores</Text>
+            <Text style={styles.chatBtnSub}>
+              {unreadChats > 0 ? `${unreadChats} mensagem${unreadChats > 1 ? 'ns' : ''} não lida${unreadChats > 1 ? 's' : ''}` : 'Todas lidas'}
+            </Text>
+          </View>
+        </View>
+        {unreadChats > 0 && (
+          <View style={styles.chatUnreadBadge}>
+            <Text style={styles.chatUnreadTxt}>{unreadChats}</Text>
+          </View>
+        )}
+        <Text style={{ color: '#0EA5E9', fontSize: 18, marginLeft: 4 }}>›</Text>
+      </TouchableOpacity>
 
       {/* Busca */}
       <View style={styles.searchWrap}>
@@ -439,6 +469,18 @@ const styles = StyleSheet.create({
   heroCrm:   { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4, fontWeight: '600' },
 
   statsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 16, marginBottom: 6 },
+
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#fff', marginHorizontal: 16, marginTop: 10, marginBottom: 4,
+    borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#BAE6FD',
+  },
+  chatBtnLeft:  { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  chatBtnIcon:  { fontSize: 26 },
+  chatBtnTitle: { fontSize: 14, fontWeight: '800', color: '#1E293B' },
+  chatBtnSub:   { fontSize: 12, color: '#64748B', marginTop: 1 },
+  chatUnreadBadge: { backgroundColor: '#0EA5E9', borderRadius: 12, minWidth: 24, height: 24, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
+  chatUnreadTxt: { color: '#fff', fontSize: 12, fontWeight: '900' },
   statCard: { flex: 1, borderRadius: 14, padding: 10, alignItems: 'center', gap: 3 },
   statIcon: { width: 18, height: 18, marginBottom: 2 },
   statValue: { fontSize: 14, fontWeight: '900' },
