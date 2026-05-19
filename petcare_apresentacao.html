@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PetCare+ — Apresentação de Produto</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; background: #F8FAFC; color: #1E293B; font-size: 14px; }
+
+  .cover {
+    background: linear-gradient(135deg, #0F3460 0%, #0284C7 55%, #38BDF8 100%);
+    min-height: 100vh; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; text-align: center;
+    padding: 60px 40px; position: relative; overflow: hidden;
+  }
+  .cover::before { content:''; position:absolute; width:700px; height:700px; border-radius:50%; background:rgba(255,255,255,0.05); top:-250px; right:-200px; }
+  .cover::after  { content:''; position:absolute; width:400px; height:400px; border-radius:50%; background:rgba(255,255,255,0.05); bottom:-100px; left:-100px; }
+  .cover-paw    { font-size: 72px; margin-bottom: 20px; position:relative; z-index:1; }
+  .cover-title  { font-size: 60px; font-weight: 900; color: #fff; letter-spacing: -2px; position:relative; z-index:1; }
+  .cover-plus   { color: #38BDF8; }
+  .cover-sub    { font-size: 22px; color: rgba(255,255,255,0.8); margin: 16px 0 40px; font-weight: 300; position:relative; z-index:1; }
+  .cover-chips  { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; position:relative; z-index:1; }
+  .chip         { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); border-radius:50px; padding:8px 18px; color:#fff; font-size:13px; font-weight:600; }
+  .chip.green   { background:rgba(16,185,129,0.3); border-color:rgba(16,185,129,0.5); }
+  .cover-url    { position:absolute; bottom:28px; color:rgba(255,255,255,0.4); font-size:12px; z-index:1; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 56px 40px; }
+
+  .sec-tag   { font-size:11px; font-weight:800; color:#0EA5E9; text-transform:uppercase; letter-spacing:2px; margin-bottom:6px; }
+  .sec-title { font-size:34px; font-weight:900; color:#0F172A; margin-bottom:8px; letter-spacing:-0.5px; }
+  .sec-desc  { font-size:15px; color:#64748B; line-height:1.65; max-width:680px; margin-bottom:36px; }
+
+  .divider { height:1px; background:linear-gradient(to right, transparent, #E2E8F0, transparent); margin:44px 0; }
+
+  /* HIGHLIGHT */
+  .highlight { background:linear-gradient(135deg,#0F3460,#0284C7); border-radius:24px; padding:40px; margin-bottom:44px; color:#fff; }
+  .highlight h2 { font-size:26px; font-weight:900; margin-bottom:10px; }
+  .highlight p  { font-size:14px; opacity:.85; line-height:1.7; margin-bottom:18px; }
+  .hl-chips { display:flex; flex-wrap:wrap; gap:10px; }
+  .hl-chip  { background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); border-radius:50px; padding:6px 16px; font-size:13px; color:#fff; font-weight:600; }
+
+  /* STATS */
+  .stats { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:44px; }
+  .stat  { flex:1; min-width:120px; background:#fff; border-radius:18px; padding:22px 16px; border:1px solid #E2E8F0; text-align:center; }
+  .stat-val { font-size:36px; font-weight:900; }
+  .stat-lbl { font-size:11px; color:#94A3B8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px; }
+
+  /* GRID */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:44px; }
+  .grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:44px; }
+  .grid-auto { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; margin-bottom:44px; }
+
+  /* CARDS */
+  .card { background:#fff; border-radius:18px; padding:22px; border:1px solid #E2E8F0; }
+  .card-icon { font-size:30px; margin-bottom:12px; }
+  .card-title { font-size:15px; font-weight:800; color:#0F172A; margin-bottom:6px; }
+  .card-desc  { font-size:13px; color:#64748B; line-height:1.6; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .tag { font-size:11px; font-weight:700; border-radius:20px; padding:3px 10px; }
+  .tag-blue   { background:#EFF6FF; color:#0284C7; }
+  .tag-purple { background:#F5F3FF; color:#7C3AED; }
+  .tag-green  { background:#F0FDF4; color:#16A34A; }
+  .tag-amber  { background:#FFFBEB; color:#B45309; }
+  .tag-red    { background:#FFF1F2; color:#BE123C; }
+
+  /* USER BLOCKS */
+  .user-card { background:#fff; border-radius:22px; padding:28px; border:1px solid #E2E8F0; }
+  .user-card.tutor { border-color:#BBF7D0; background:linear-gradient(135deg,#F0FDF4 0%,#fff 100%); }
+  .user-card.vet   { border-color:#BAE6FD; background:linear-gradient(135deg,#EFF6FF 0%,#fff 100%); }
+  .user-hdr { display:flex; align-items:center; gap:14px; margin-bottom:20px; }
+  .user-ico { width:50px; height:50px; border-radius:15px; display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .user-ico.tutor { background:#D1FAE5; }
+  .user-ico.vet   { background:#DBEAFE; }
+  .user-name { font-size:19px; font-weight:900; color:#0F172A; }
+  .user-sub  { font-size:12px; color:#64748B; margin-top:2px; }
+  .feat-list { list-style:none; }
+  .feat-list li { display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-bottom:1px solid #F1F5F9; font-size:13px; color:#374151; line-height:1.5; }
+  .feat-list li:last-child { border-bottom:none; }
+  .feat-list .ck { font-size:13px; flex-shrink:0; }
+
+  /* TECH */
+  .tech-grid { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:44px; }
+  .tech-pill { background:#fff; border:1px solid #E2E8F0; border-radius:14px; padding:12px 18px; display:flex; align-items:center; gap:10px; }
+  .tech-ico  { font-size:22px; }
+  .tech-name { font-size:13px; font-weight:700; color:#1E293B; }
+  .tech-role { font-size:11px; color:#94A3B8; }
+
+  /* PLANES */
+  .plan-card { background:#fff; border-radius:18px; padding:24px; border:2px solid #E2E8F0; }
+  .plan-card.premium { border-color:#0EA5E9; }
+  .plan-card.vet-plan { border-color:#7C3AED; background:linear-gradient(135deg,#F5F3FF,#fff); }
+  .plan-ico   { font-size:28px; margin-bottom:10px; }
+  .plan-name  { font-size:16px; font-weight:900; color:#0F172A; margin-bottom:6px; }
+  .plan-desc  { font-size:13px; color:#64748B; line-height:1.6; }
+
+  /* STATUS BOXES */
+  .done-box { background:#fff; border-radius:18px; padding:28px; border:1px solid #E2E8F0; margin-bottom:44px; }
+  .done-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+  .done-item { display:flex; gap:10px; align-items:flex-start; }
+  .done-check { color:#10B981; font-size:16px; flex-shrink:0; }
+  .done-name { font-weight:700; font-size:13px; color:#0F172A; }
+  .done-sub  { font-size:12px; color:#64748B; margin-top:1px; }
+
+  /* ROADMAP */
+  .roadmap-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; margin-bottom:44px; }
+  .rm-card { background:#fff; border-radius:14px; padding:18px; border-left:4px solid #F59E0B; border:1px solid #FED7AA; border-left-width:4px; }
+  .rm-card.blocked { border-color:#FECDD3; border-left-color:#EF4444; }
+  .rm-card.partial { border-color:#FDE68A; border-left-color:#F59E0B; }
+  .rm-card.ready   { border-color:#BBF7D0; border-left-color:#10B981; }
+  .rm-status { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .rm-status.blocked { color:#DC2626; }
+  .rm-status.partial { color:#D97706; }
+  .rm-status.ready   { color:#10B981; }
+  .rm-title { font-size:14px; font-weight:800; color:#0F172A; margin-bottom:5px; }
+  .rm-desc  { font-size:12px; color:#64748B; line-height:1.55; }
+  .rm-req   { font-size:11px; color:#94A3B8; margin-top:8px; font-style:italic; }
+
+  /* DETAIL TABLE */
+  .detail-table { width:100%; border-collapse:collapse; margin-bottom:44px; font-size:13px; }
+  .detail-table th { text-align:left; padding:10px 14px; background:#F8FAFC; color:#64748B; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; border-bottom:2px solid #E2E8F0; }
+  .detail-table td { padding:12px 14px; border-bottom:1px solid #F1F5F9; vertical-align:top; }
+  .detail-table tr:last-child td { border-bottom:none; }
+  .detail-table .feat-name { font-weight:700; color:#0F172A; }
+  .detail-table .status-done    { display:inline-block; background:#DCFCE7; color:#16A34A; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; }
+  .detail-table .status-partial { display:inline-block; background:#FEF3C7; color:#D97706; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; }
+  .detail-table .status-todo    { display:inline-block; background:#FEE2E2; color:#DC2626; border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; }
+  .detail-table .needs { font-size:12px; color:#7C3AED; }
+
+  .footer { text-align:center; padding:40px; font-size:12px; color:#94A3B8; border-top:1px solid #E2E8F0; margin-top:40px; }
+
+  @media print { body { background:#fff; } .cover { min-height:auto; padding:100px 60px; } @page { margin:0; } }
+  @media (max-width:700px) { .grid-2, .grid-3 { grid-template-columns:1fr; } .cover-title { font-size:42px; } }
+</style>
+</head>
+<body>
+
+<!-- ══ CAPA ══════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-paw">🐾</div>
+  <h1 class="cover-title">Pet<span class="cover-plus">Care+</span></h1>
+  <p class="cover-sub">A plataforma que conecta tutores e veterinários</p>
+  <div class="cover-chips">
+    <span class="chip">📱 iOS &amp; Android</span>
+    <span class="chip">🌐 Web App</span>
+    <span class="chip green">✓ Beta Live</span>
+    <span class="chip">🩺 Hub Veterinário</span>
+    <span class="chip">❤️ Área do Tutor</span>
+    <span class="chip">🤖 IA Assistente</span>
+  </div>
+  <p class="cover-url">petcare-plus-nu.vercel.app · Maio 2026 · Confidencial</p>
+</div>
+
+<!-- ══ VISÃO GERAL ════════════════════════════════════════════ -->
+<div class="page">
+  <br>
+  <div class="sec-tag">Sobre o produto</div>
+  <h2 class="sec-title">O que é o PetCare+?</h2>
+  <p class="sec-desc">Aplicativo mobile e web que digitaliza a relação entre tutores de pets e veterinários. Uma plataforma única: o tutor gerencia a saúde do pet, o vet acessa o histórico completo, agenda consultas e emite documentos clínicos — tudo em tempo real, com segurança.</p>
+
+  <div class="highlight">
+    <h2>Dois perfis, uma plataforma integrada</h2>
+    <p>O app detecta automaticamente se o usuário é tutor ou veterinário (com CRMV validado) e apresenta uma experiência completamente personalizada. Os dois mundos se conectam através de vinculação por código único, chat em tempo real e agenda compartilhada.</p>
+    <div class="hl-chips">
+      <span class="hl-chip">❤️ App do Tutor</span>
+      <span class="hl-chip">🩺 Hub do Veterinário</span>
+      <span class="hl-chip">💬 Chat Tempo Real</span>
+      <span class="hl-chip">📅 Agenda Online</span>
+      <span class="hl-chip">📄 Documentos Clínicos em Nuvem</span>
+      <span class="hl-chip">🤖 Fred — IA Especializada</span>
+      <span class="hl-chip">🔐 Validação CRMV Automática</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-val" style="color:#0EA5E9">7</div><div class="stat-lbl">Espécies</div></div>
+    <div class="stat"><div class="stat-val" style="color:#10B981">2</div><div class="stat-lbl">Perfis</div></div>
+    <div class="stat"><div class="stat-val" style="color:#7C3AED">50+</div><div class="stat-lbl">Funcionalidades</div></div>
+    <div class="stat"><div class="stat-val" style="color:#F59E0B">3</div><div class="stat-lbl">Plataformas</div></div>
+    <div class="stat"><div class="stat-val" style="color:#0F172A">15+</div><div class="stat-lbl">Tabelas DB</div></div>
+    <div class="stat"><div class="stat-val" style="color:#EF4444">100%</div><div class="stat-lbl">Cloud</div></div>
+  </div>
+
+  <!-- DOIS PERFIS -->
+  <div class="sec-tag">Funcionalidades</div>
+  <h2 class="sec-title">Por perfil de usuário</h2>
+  <p class="sec-desc">Cada tipo de usuário tem sua própria jornada e conjunto de ferramentas.</p>
+
+  <div class="grid-2">
+    <div class="user-card tutor">
+      <div class="user-hdr">
+        <div class="user-ico tutor">❤️</div>
+        <div><div class="user-name">Tutor</div><div class="user-sub">Dono do pet · Plano Free e Premium</div></div>
+      </div>
+      <ul class="feat-list">
+        <li><span class="ck">✅</span>Cadastro e login com e-mail + Google OAuth</li>
+        <li><span class="ck">✅</span>Perfis de múltiplos pets (cão, gato, ave, coelho, hamster, réptil, peixe)</li>
+        <li><span class="ck">✅</span>Foto, raça, pelagem, sexo, castração, data de nascimento, fase de vida automática</li>
+        <li><span class="ck">✅</span>Carteira de vacinação digital com alertas de atraso/vencimento</li>
+        <li><span class="ck">✅</span>Evolução de peso com gráfico de linha (tutor + vet no mesmo gráfico)</li>
+        <li><span class="ck">✅</span>Controle de gastos por categoria com relatório PDF</li>
+        <li><span class="ck">✅</span>Registros médicos com diagnóstico e prescrição</li>
+        <li><span class="ck">✅</span>Notas de saúde e medicamentos em uso (visíveis ao vet)</li>
+        <li><span class="ck">✅</span>RG Digital do pet (QR Code)</li>
+        <li><span class="ck">✅</span>Prontuário público compartilhável (link sem login)</li>
+        <li><span class="ck">✅</span>Acesso de convidado (compartilhar com familiar)</li>
+        <li><span class="ck">✅</span>Vinculação de veterinário via código de 8 dígitos</li>
+        <li><span class="ck">✅</span>Chat em tempo real com veterinário vinculado</li>
+        <li><span class="ck">✅</span>Solicitação de agendamento pela agenda do vet (com horários disponíveis/reservados)</li>
+        <li><span class="ck">✅</span>Visualização de consultas e registros veterinários</li>
+        <li><span class="ck">✅</span>Download de receitas e atestados emitidos pelo vet</li>
+        <li><span class="ck">✅</span>Fred — IA especializada em cuidados com pets</li>
+        <li><span class="ck">✅</span>Mapa de clínicas e serviços próximos</li>
+        <li><span class="ck">✅</span>Plano Premium desbloqueado</li>
+      </ul>
+    </div>
+
+    <div class="user-card vet">
+      <div class="user-hdr">
+        <div class="user-ico vet">🩺</div>
+        <div><div class="user-name">Veterinário</div><div class="user-sub">CRMV validado · Plano Veterinário</div></div>
+      </div>
+      <ul class="feat-list">
+        <li><span class="ck">✅</span>Cadastro com validação de CRMV automática (scraping CFMV + 3 tentativas)</li>
+        <li><span class="ck">✅</span>Dashboard com pacientes, agenda e financeiro</li>
+        <li><span class="ck">✅</span>Pacientes vinculados (via código) e avulsos (sem conta no app)</li>
+        <li><span class="ck">✅</span>Busca e filtro de pacientes</li>
+        <li><span class="ck">✅</span>Prontuário clínico: queixa, diagnóstico, tratamento, prescrição, temp. e peso</li>
+        <li><span class="ck">✅</span>Agenda com visão mensal, semanal e diária</li>
+        <li><span class="ck">✅</span>Configurar disponibilidade de horários por dia da semana</li>
+        <li><span class="ck">✅</span>Aceitar / recusar solicitações de tutores</li>
+        <li><span class="ck">✅</span>Chat em tempo real com tutores (com badge de não lidas)</li>
+        <li><span class="ck">✅</span>Lista de conversas filtrada por pet/tutor</li>
+        <li><span class="ck">✅</span>Receita Médica com medicamentos + dose + frequência + duração</li>
+        <li><span class="ck">✅</span>Atestado de Saúde com restrições e validade</li>
+        <li><span class="ck">✅</span>Declaração veterinária livre</li>
+        <li><span class="ck">✅</span>Documentos salvos na nuvem · tutor pode baixar a qualquer momento</li>
+        <li><span class="ck">✅</span>Assinatura digital + logo da clínica nos documentos</li>
+        <li><span class="ck">✅</span>Registro de evolução: peso, altura, comprimento</li>
+        <li><span class="ck">✅</span>Controle financeiro (faturamento, pendências)</li>
+        <li><span class="ck">✅</span>Fred — IA assistente clínica e de agenda</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FUNCIONALIDADES DETALHADAS ════════════════════════════ -->
+<div class="page">
+  <div class="sec-tag">Detalhamento técnico</div>
+  <h2 class="sec-title">Status completo de cada funcionalidade</h2>
+  <p class="sec-desc">Tabela com o estado atual, o que está funcionando e o que precisa para completar.</p>
+
+  <table class="detail-table">
+    <thead>
+      <tr><th>Funcionalidade</th><th>Status</th><th>Como funciona hoje</th><th>O que falta</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="feat-name">Login e-mail / senha</td><td><span class="status-done">✓ Pronto</span></td><td>Supabase Auth com JWT. Sessão persistente.</td><td>—</td></tr>
+      <tr><td class="feat-name">Login Google (OAuth)</td><td><span class="status-done">✓ Pronto</span></td><td>OAuth2 via Supabase Auth.</td><td>—</td></tr>
+      <tr><td class="feat-name">Login Apple ID</td><td><span class="status-todo">✗ Pendente</span></td><td>Não implementado.</td><td class="needs">Conta Apple Developer ($99/ano) + configurar Sign in with Apple no Supabase.</td></tr>
+      <tr><td class="feat-name">Validação de CRMV</td><td><span class="status-partial">⚠ Parcial</span></td><td>Edge Function faz scraping do CFMV com 3 tentativas e backoff. Se validado → aprovado automaticamente. Se falhar → pendente para revisão manual.</td><td class="needs">Melhoria: parceria com CFMV ou serviço pago (BigDataCorp ~R$0,50/consulta) para 100% de confiabilidade.</td></tr>
+      <tr><td class="feat-name">Aprovação admin de vets</td><td><span class="status-done">✓ Pronto</span></td><td>Tela no Perfil (admin only). Funções SQL com SECURITY DEFINER.</td><td>—</td></tr>
+      <tr><td class="feat-name">Perfil e fotos do pet</td><td><span class="status-done">✓ Pronto</span></td><td>Upload via Supabase Storage. 7 espécies com avatares próprios.</td><td>—</td></tr>
+      <tr><td class="feat-name">Carteira de vacinação</td><td><span class="status-done">✓ Pronto</span></td><td>Alertas de atraso e vencimento em 30 dias. Sugestões por espécie.</td><td>—</td></tr>
+      <tr><td class="feat-name">Controle de gastos</td><td><span class="status-done">✓ Pronto</span></td><td>Categorias, resumo mensal, relatório PDF por período.</td><td>—</td></tr>
+      <tr><td class="feat-name">Evolução de peso</td><td><span class="status-done">✓ Pronto</span></td><td>Gráfico SVG interativo. Tutor e vet registram — aparecem juntos no mesmo gráfico. Campos: peso, altura, comprimento.</td><td>—</td></tr>
+      <tr><td class="feat-name">Prontuário clínico</td><td><span class="status-done">✓ Pronto</span></td><td>Vet registra: queixa, diagnóstico, tratamento, prescrição. Controle de visibilidade ao tutor.</td><td>—</td></tr>
+      <tr><td class="feat-name">Chat tutor ↔ vet</td><td><span class="status-done">✓ Pronto</span></td><td>WebSocket via Supabase Realtime. RLS garante segurança. Badge de não lidas no dashboard.</td><td>—</td></tr>
+      <tr><td class="feat-name">Push notifications</td><td><span class="status-partial">⚠ Parcial</span></td><td>Código completo: Expo Push API, tokens armazenados no Supabase, disparo automático. Funciona no Expo Go (testes).</td><td class="needs">Para produção (App Store/Play Store): EAS Build com credenciais APNs/FCM configuradas.</td></tr>
+      <tr><td class="feat-name">Agenda com disponibilidade</td><td><span class="status-done">✓ Pronto</span></td><td>Vet configura slots semanais. Tutor vê horários livres e reservados. Confirmação/recusa pelo vet.</td><td>—</td></tr>
+      <tr><td class="feat-name">Documentos clínicos</td><td><span class="status-done">✓ Pronto</span></td><td>Receita, Atestado, Declaração. Assinatura digital + logo da clínica. Salvos na nuvem. Tutor baixa quando quiser.</td><td>—</td></tr>
+      <tr><td class="feat-name">IA Fred — Tutor</td><td><span class="status-done">✓ Pronto</span></td><td>Claude Haiku via Edge Function. Só responde sobre cuidados com pets. Bloqueia outros assuntos.</td><td class="needs">Chave ANTHROPIC_API_KEY configurada no Supabase.</td></tr>
+      <tr><td class="feat-name">IA Fred — Vet</td><td><span class="status-done">✓ Pronto</span></td><td>Mesmo modelo mas com persona clínica: agenda, protocolos, pacientes.</td><td class="needs">Mesma chave API acima.</td></tr>
+      <tr><td class="feat-name">Mapa de serviços</td><td><span class="status-partial">⚠ Parcial</span></td><td>Tela e filtros implementados. Localização do usuário ativa.</td><td class="needs">Integrar Google Places API para buscar clínicas e pet shops reais próximos. (Chave API + billing no GCP)</td></tr>
+      <tr><td class="feat-name">Pagamento / assinaturas</td><td><span class="status-todo">✗ Pendente</span></td><td>Estrutura de planos existe (Free, Premium, Vet). Nenhuma cobrança real.</td><td class="needs">Integrar Stripe (web/Android) + RevenueCat (iOS). Configurar webhooks e lógica de acesso.</td></tr>
+      <tr><td class="feat-name">E-mails automáticos</td><td><span class="status-todo">✗ Pendente</span></td><td>Não implementado.</td><td class="needs">Edge Function + Resend.com ou Gmail SMTP. Confirmação de agendamento, lembrete de vacina.</td></tr>
+      <tr><td class="feat-name">Publicação App Store</td><td><span class="status-todo">✗ Pendente</span></td><td>App roda em Expo Go e web.</td><td class="needs">EAS Build (Expo) + conta Apple Developer ($99/ano) + conta Google Developer ($25 único) + assets da loja (ícones, screenshots, descrição).</td></tr>
+    </tbody>
+  </table>
+
+  <div class="divider"></div>
+
+  <!-- STACK TÉCNICO -->
+  <div class="sec-tag">Arquitetura</div>
+  <h2 class="sec-title">Stack tecnológico</h2>
+  <p class="sec-desc">Escolhas técnicas focadas em velocidade de desenvolvimento, escalabilidade e custo zero no início.</p>
+
+  <div class="tech-grid">
+    <div class="tech-pill"><div class="tech-ico">⚛️</div><div><div class="tech-name">React Native + Expo SDK 54</div><div class="tech-role">iOS, Android e Web em um único código</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">🗄️</div><div><div class="tech-name">Supabase (PostgreSQL)</div><div class="tech-role">DB, Auth, Realtime, Storage, Edge Functions</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">🚀</div><div><div class="tech-name">Vercel</div><div class="tech-role">Deploy web automático via Git push</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">🤖</div><div><div class="tech-name">Anthropic Claude Haiku 4.5</div><div class="tech-role">IA do Fred (tutor + modo clínico vet)</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">🔐</div><div><div class="tech-name">Row Level Security (RLS)</div><div class="tech-role">Segurança de dados no banco (PostgreSQL)</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">📡</div><div><div class="tech-name">Supabase Realtime (WebSocket)</div><div class="tech-role">Chat e notificações em tempo real</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">📱</div><div><div class="tech-name">Expo Push API</div><div class="tech-role">Notificações push iOS/Android</div></div></div>
+    <div class="tech-pill"><div class="tech-ico">🔍</div><div><div class="tech-name">Edge Function (Deno/TypeScript)</div><div class="tech-role">Validação CRMV + Fred IA (serverless)</div></div></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- PLANOS -->
+  <div class="sec-tag">Monetização</div>
+  <h2 class="sec-title">Estrutura de planos</h2>
+  <p class="sec-desc">Modelo freemium. Pagamento ainda não implementado — estrutura pronta para integrar Stripe/RevenueCat.</p>
+
+  <div class="grid-3">
+    <div class="plan-card">
+      <div class="plan-ico">🆓</div>
+      <div class="plan-name">Free</div>
+      <div class="plan-desc">1 pet. Vacinas, peso e gastos básicos. Sem acesso a veterinários vinculados, mapas ou Fred IA.</div>
+      <div class="tags" style="margin-top:12px"><span class="tag tag-blue">Tutor</span></div>
+    </div>
+    <div class="plan-card premium">
+      <div class="plan-ico">⭐</div>
+      <div class="plan-name">Premium</div>
+      <div class="plan-desc">Pets ilimitados, veterinários vinculados, chat, agendamento, relatórios, mapas e Fred IA. Até 5 acessos compartilhados.</div>
+      <div class="tags" style="margin-top:12px"><span class="tag tag-blue">Tutor</span></div>
+    </div>
+    <div class="plan-card vet-plan">
+      <div class="plan-ico">🩺</div>
+      <div class="plan-name">Veterinário</div>
+      <div class="plan-desc">Acesso total ao Hub. Agenda, prontuário, chat, documentos clínicos na nuvem, Fred clínico e financeiro. CRMV obrigatório.</div>
+      <div class="tags" style="margin-top:12px"><span class="tag tag-purple">Vet</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRÓXIMOS PASSOS DETALHADOS ════════════════════════════ -->
+<div class="page">
+  <div class="sec-tag">Roadmap</div>
+  <h2 class="sec-title">O que falta e o que precisa para implementar</h2>
+  <p class="sec-desc">Cada item com o que está pendente, o que é necessário (conta, API, custo) e estimativa de esforço.</p>
+
+  <div class="roadmap-grid">
+
+    <div class="rm-card blocked">
+      <div class="rm-status blocked">⛔ Não iniciado</div>
+      <div class="rm-title">Login com Apple ID</div>
+      <div class="rm-desc">Obrigatório para publicação na App Store. Todo app iOS que oferece login social precisa oferecer Apple ID.</div>
+      <div class="rm-req">Precisa: Conta Apple Developer ($99/ano) · Configurar "Sign in with Apple" no painel Supabase · 1–2 dias de dev</div>
+    </div>
+
+    <div class="rm-card blocked">
+      <div class="rm-status blocked">⛔ Não iniciado</div>
+      <div class="rm-title">Gateway de pagamento</div>
+      <div class="rm-desc">Planos existem mas nenhuma cobrança real ocorre. Sem isso, o app não gera receita.</div>
+      <div class="rm-req">Precisa: Stripe (web/Android) + RevenueCat (iOS) · CNPJ/conta bancária para receber · 3–5 dias de dev</div>
+    </div>
+
+    <div class="rm-card blocked">
+      <div class="rm-status blocked">⛔ Não iniciado</div>
+      <div class="rm-title">Publicação App Store + Play Store</div>
+      <div class="rm-desc">O app funciona no Expo Go (teste) e na web. Para estar nas lojas, precisa de build nativo.</div>
+      <div class="rm-req">Precisa: EAS Build (Expo) · Apple Developer $99/ano · Google Developer $25 único · Assets da loja (ícones, screenshots) · 1–3 dias de configuração</div>
+    </div>
+
+    <div class="rm-card partial">
+      <div class="rm-status partial">⚠ Parcial</div>
+      <div class="rm-title">Google Maps — Serviços próximos</div>
+      <div class="rm-desc">Tela de mapa existe com filtros por categoria. Falta os dados reais (clínicas, pet shops por localização).</div>
+      <div class="rm-req">Precisa: Chave Google Places API · Projeto no Google Cloud Platform · ~R$0,017 por busca · 1–2 dias de dev</div>
+    </div>
+
+    <div class="rm-card partial">
+      <div class="rm-status partial">⚠ Quase pronto</div>
+      <div class="rm-title">Push Notifications em produção</div>
+      <div class="rm-desc">Código completo. Funciona em testes (Expo Go). Falta configurar credenciais para builds de produção.</div>
+      <div class="rm-req">Precisa: EAS Build configurado · APNs certificate (Apple Developer) · Firebase FCM key · Configuração em eas.json · Meio dia de configuração</div>
+    </div>
+
+    <div class="rm-card partial">
+      <div class="rm-status partial">⚠ Parcial</div>
+      <div class="rm-title">Validação CRMV 100% confiável</div>
+      <div class="rm-desc">Atual: scraping CFMV com 3 tentativas (funciona na maioria dos casos). Para garantir 100%, precisa de serviço pago.</div>
+      <div class="rm-req">Opção paga: BigDataCorp ou SintegraWS · ~R$0,50/consulta · CNPJ para contratar · 1 dia de dev</div>
+    </div>
+
+    <div class="rm-card blocked">
+      <div class="rm-status blocked">⛔ Não iniciado</div>
+      <div class="rm-title">E-mails automáticos</div>
+      <div class="rm-desc">Confirmação de agendamento, lembrete de vacina 7 dias antes, boas-vindas ao novo usuário.</div>
+      <div class="rm-req">Precisa: Resend.com (free até 100 emails/dia) ou SendGrid · Edge Function Supabase · 1–2 dias de dev</div>
+    </div>
+
+    <div class="rm-card ready">
+      <div class="rm-status ready">🟢 Pode iniciar agora</div>
+      <div class="rm-title">Telemedicina (vídeo)</div>
+      <div class="rm-desc">Consultas por videochamada integradas. Alta demanda dos veterinários parceiros.</div>
+      <div class="rm-req">Precisa: Daily.co (free até 10k min/mês) ou Whereby · SDK React Native · 3–5 dias de dev</div>
+    </div>
+
+    <div class="rm-card ready">
+      <div class="rm-status ready">🟢 Pode iniciar agora</div>
+      <div class="rm-title">Plano multi-clínica</div>
+      <div class="rm-desc">Vet com mais de uma unidade, agendas separadas por localização.</div>
+      <div class="rm-req">Precisa: Nova tabela `vet_clinics` · Ajustes na agenda e financeiro · 2–3 dias de dev</div>
+    </div>
+
+    <div class="rm-card ready">
+      <div class="rm-status ready">🟢 Pode iniciar agora</div>
+      <div class="rm-title">Modo escuro</div>
+      <div class="rm-desc">Dark mode para iOS/Android/Web. UI usa cores hardcoded — precisa de refatoração para tema.</div>
+      <div class="rm-req">Precisa: Sistema de tema (React Context ou Tamagui) · ~5 dias de refatoração</div>
+    </div>
+
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- O QUE ESTÁ LIVE -->
+  <div class="sec-tag">Status atual</div>
+  <h2 class="sec-title">O que está 100% funcional hoje</h2>
+  <div class="done-box">
+    <div class="done-grid">
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Web App publicado</div><div class="done-sub">petcare-plus-nu.vercel.app · Deploy automático no git push</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Banco de dados em produção</div><div class="done-sub">Supabase · PostgreSQL · RLS · 15+ tabelas</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Autenticação</div><div class="done-sub">Email/senha + Google OAuth · Sessão persistente</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Chat em tempo real</div><div class="done-sub">WebSocket · Mensagens chegam instantaneamente</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Validação CRMV automática</div><div class="done-sub">Scraping CFMV · 3 tentativas · fallback para revisão manual</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Documentos clínicos na nuvem</div><div class="done-sub">Receita, atestado, declaração · Tutor baixa quando quiser</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Agenda com disponibilidade</div><div class="done-sub">Slots configurados pelo vet · Confirmação/recusa em tempo real</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Fred IA funcionando</div><div class="done-sub">Claude Haiku · modo tutor e modo clínico vet</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Suporte ativo</div><div class="done-sub">suporte.petcareplus@gmail.com · Link direto no app</div></div></div>
+      <div class="done-item"><span class="done-check">✓</span><div><div class="done-name">Admin de veterinários</div><div class="done-sub">Tela de aprovação/recusa no app do admin</div></div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ RODAPÉ ════════════════════════════════════════════════ -->
+<div class="footer">
+  <strong style="color:#0EA5E9;font-size:20px">PetCare+</strong><br><br>
+  Plataforma de saúde pet · Conectando tutores e veterinários<br>
+  <a href="https://petcare-plus-nu.vercel.app" style="color:#0EA5E9;text-decoration:none">petcare-plus-nu.vercel.app</a>
+  &nbsp;·&nbsp;
+  <a href="mailto:suporte.petcareplus@gmail.com" style="color:#0EA5E9;text-decoration:none">suporte.petcareplus@gmail.com</a>
+  <br><br>
+  Documento gerado em maio de 2026 · Confidencial · Não distribuir
+</div>
+
+</body>
+</html>
