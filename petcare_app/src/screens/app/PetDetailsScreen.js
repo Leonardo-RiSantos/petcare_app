@@ -257,6 +257,8 @@ export default function PetDetailsScreen({ route, navigation }) {
   const [apptRequestVet, setApptRequestVet] = useState(null);
   const [apptRequestForm, setApptRequestForm] = useState({ type: 'consulta', date: '', time: '', message: '' });
   const [apptRequestSaving, setApptRequestSaving] = useState(false);
+  const [apptTimeSlots, setApptTimeSlots] = useState([]); // slots do dia selecionado
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const fetchData = async () => {
     const [petRes, vacRes, expRes, wRes, medRes, profileRes, linksRes, apptRes, schedRes, consultRes] = await Promise.all([
@@ -328,12 +330,55 @@ export default function PetDetailsScreen({ route, navigation }) {
     setRemoveVetLink(null);
   };
 
+  const _addMin = (t, mins) => {
+    const [h, m] = t.split(':').map(Number);
+    const tot = h * 60 + m + mins;
+    return `${String(Math.floor(tot / 60)).padStart(2,'0')}:${String(tot % 60).padStart(2,'0')}`;
+  };
+
+  const loadSlotsForDate = async (dateStr, vetId) => {
+    if (!vetId) { setApptTimeSlots([]); return; }
+    const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) { setApptTimeSlots([]); return; }
+    const iso = `${match[3]}-${match[2]}-${match[1]}`;
+    const dow = new Date(`${iso}T12:00:00`).getDay();
+
+    setLoadingSlots(true);
+    const [availRes, schedRes] = await Promise.all([
+      supabase.from('vet_availability')
+        .select('start_time, end_time, slot_minutes')
+        .eq('vet_id', vetId).eq('day_of_week', dow).eq('active', true),
+      supabase.from('vet_schedule')
+        .select('scheduled_time, status')
+        .eq('vet_id', vetId).eq('scheduled_date', iso)
+        .not('status', 'in', '("cancelled","no_show")'),
+    ]);
+
+    const taken = new Set((schedRes.data || []).map(s => String(s.scheduled_time).slice(0,5)));
+    const slots = [];
+    (availRes.data || []).forEach(a => {
+      const mins = a.slot_minutes || 30;
+      let cur = String(a.start_time).slice(0,5);
+      const end = String(a.end_time).slice(0,5);
+      while (cur < end) {
+        slots.push({ time: cur, reserved: taken.has(cur) });
+        cur = _addMin(cur, mins);
+      }
+    });
+    setApptTimeSlots(slots);
+    setLoadingSlots(false);
+  };
+
   const openApptRequest = (link) => {
     setApptRequestVet(link);
+    setApptTimeSlots([]);
     const today2 = new Date().toISOString().slice(0, 10);
     const [y, m, d] = today2.split('-');
-    setApptRequestForm({ type: 'consulta', date: `${d}/${m}/${y}`, time: '', message: '' });
+    const todayStr = `${d}/${m}/${y}`;
+    setApptRequestForm({ type: 'consulta', date: todayStr, time: '', message: '' });
     setShowApptRequest(true);
+    // Carrega slots do dia atual
+    loadSlotsForDate(todayStr, link.vet_id);
   };
 
   const submitApptRequest = async () => {
@@ -1720,16 +1765,63 @@ export default function PetDetailsScreen({ route, navigation }) {
               </ScrollView>
 
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8 }}>Data preferida *</Text>
-              <DatePickerInput value={apptRequestForm.date} onChangeText={v => setApptRequestForm(p => ({ ...p, date: v }))} label="Data preferida" />
-
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 16 }}>Horário preferido</Text>
-              <TextInput
-                style={{ backgroundColor: '#F8FAFC', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15, borderWidth: 1.5, borderColor: '#E0F2FE', color: '#1E293B' }}
-                value={apptRequestForm.time}
-                onChangeText={v => setApptRequestForm(p => ({ ...p, time: v }))}
-                placeholder="Ex: 14:30 (opcional)"
-                placeholderTextColor="#9CA3AF"
+              <DatePickerInput
+                value={apptRequestForm.date}
+                onChangeText={v => {
+                  setApptRequestForm(p => ({ ...p, date: v, time: '' }));
+                  loadSlotsForDate(v, apptRequestVet?.vet_id);
+                }}
+                label="Data preferida"
               />
+
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 10, marginTop: 18 }}>
+                Horário preferido
+              </Text>
+
+              {/* Grade de horários baseada na disponibilidade do vet */}
+              {loadingSlots ? (
+                <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+                  <ActivityIndicator color="#0EA5E9" />
+                  <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 8 }}>Buscando horários disponíveis...</Text>
+                </View>
+              ) : apptTimeSlots.length === 0 ? (
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#E0F2FE', borderStyle: 'dashed', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
+                    {apptRequestForm.date ? 'Nenhum horário disponível neste dia\nEscolha outra data ou entre em contato via chat' : 'Selecione uma data para ver os horários'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E0F2FE' }}>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {apptTimeSlots.map(s => {
+                      const isSelected = apptRequestForm.time === s.time;
+                      if (s.reserved) {
+                        return (
+                          <View key={s.time} style={{ borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1.5, borderColor: '#E2E8F0', backgroundColor: 'rgba(248,250,252,0.5)', alignItems: 'center', minWidth: 64 }}>
+                            <Text style={{ fontSize: 13, color: '#CBD5E1', fontWeight: '600' }}>{s.time}</Text>
+                            <Text style={{ fontSize: 9, color: '#CBD5E1', fontWeight: '500', marginTop: 1 }}>Reservado</Text>
+                          </View>
+                        );
+                      }
+                      return (
+                        <TouchableOpacity
+                          key={s.time}
+                          style={{ borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1.5, minWidth: 64, alignItems: 'center', backgroundColor: isSelected ? '#0EA5E9' : '#fff', borderColor: isSelected ? '#0EA5E9' : '#BAE6FD' }}
+                          onPress={() => setApptRequestForm(p => ({ ...p, time: s.time }))}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? '#fff' : '#0EA5E9' }}>{s.time}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {apptRequestForm.time ? (
+                    <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '700', marginTop: 10 }}>✓ Horário selecionado: {apptRequestForm.time}</Text>
+                  ) : (
+                    <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 10 }}>Toque em um horário disponível para selecionar</Text>
+                  )}
+                </View>
+              )}
 
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 8, marginTop: 16 }}>Mensagem para o veterinário</Text>
               <TextInput
