@@ -71,8 +71,9 @@ export default function ProfileScreen({ navigation }) {
   const [vetInputs, setVetInputs] = useState({ specialty: '', clinic_name: '', clinic_address: '' });
   const [savingVet, setSavingVet] = useState(false);
   // Configurações clínica (vet)
-  const [vetSettings, setVetSettings] = useState({ chat_enabled: false, signature_url: '' });
+  const [vetSettings, setVetSettings] = useState({ chat_enabled: false, signature_url: '', clinic_logo_url: '' });
   const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [uploadingLogo,      setUploadingLogo]      = useState(false);
 
   const fetchData = async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -85,7 +86,7 @@ export default function ProfileScreen({ navigation }) {
     if (isVet) {
       // Stats do veterinário: pacientes + consultas + receita do mês
       baseQueries.push(
-        supabase.from('vet_profiles').select('specialty, clinic_name, clinic_address, chat_enabled, signature_url').eq('id', user.id).single(),
+        supabase.from('vet_profiles').select('specialty, clinic_name, clinic_address, chat_enabled, signature_url, clinic_logo_url').eq('id', user.id).single(),
         supabase.from('pet_vet_links').select('id', { count: 'exact' }).eq('vet_id', user.id).eq('status', 'active'),
         supabase.from('vet_unlinked_patients').select('id', { count: 'exact' }).eq('vet_id', user.id),
         supabase.from('vet_consultations').select('id', { count: 'exact' }).eq('vet_id', user.id),
@@ -116,7 +117,7 @@ export default function ProfileScreen({ navigation }) {
         const vd = { specialty: vetRes.data.specialty || '', clinic_name: vetRes.data.clinic_name || '', clinic_address: vetRes.data.clinic_address || '' };
         setVetData(vd);
         setVetInputs(vd);
-        const vs = { chat_enabled: !!vetRes.data.chat_enabled, signature_url: vetRes.data.signature_url || '' };
+        const vs = { chat_enabled: !!vetRes.data.chat_enabled, signature_url: vetRes.data.signature_url || '', clinic_logo_url: vetRes.data.clinic_logo_url || '' };
         setVetSettings(vs);
       }
       const totalPatients = (linkedRes.count ?? 0) + (avulsosRes.count ?? 0);
@@ -215,6 +216,21 @@ export default function ProfileScreen({ navigation }) {
       Alert.alert('Erro ao enviar assinatura', e.message);
     } finally {
       setUploadingSignature(false);
+    }
+  };
+
+  const handleLogoUpload = async () => {
+    const uri = await pickImage({ allowsEditing: false });
+    if (!uri) return;
+    setUploadingLogo(true);
+    try {
+      const url = await uploadImage(uri, 'pet-photos', `clinic-logos/${user.id}`);
+      await supabase.from('vet_profiles').update({ clinic_logo_url: url }).eq('id', user.id);
+      setVetSettings(p => ({ ...p, clinic_logo_url: url }));
+    } catch (e) {
+      Alert.alert('Erro ao enviar logo', e.message);
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -501,6 +517,27 @@ export default function ProfileScreen({ navigation }) {
                 onValueChange={v => toggleVetSetting('chat_enabled', v)}
                 trackColor={{ true: '#0EA5E9', false: '#E2E8F0' }}
               />
+            </View>
+
+            {/* Logo da clínica */}
+            <View style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 14, flexDirection: 'column', alignItems: 'flex-start', gap: 10 }]}>
+              <Text style={styles.settingLabel}>Logo da clínica</Text>
+              <Text style={styles.settingDesc}>Aparece no cabeçalho de receitas e atestados</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {vetSettings.clinic_logo_url ? (
+                  <Image source={{ uri: vetSettings.clinic_logo_url }} style={{ width: 120, height: 50, borderRadius: 8, borderWidth: 1, borderColor: '#E0F2FE' }} resizeMode="contain" />
+                ) : (
+                  <View style={{ width: 120, height: 50, borderRadius: 8, borderWidth: 1.5, borderColor: '#BAE6FD', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, color: '#94A3B8' }}>Sem logo</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={{ backgroundColor: '#EFF6FF', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#BAE6FD' }}
+                  onPress={handleLogoUpload} disabled={uploadingLogo}
+                >
+                  {uploadingLogo ? <ActivityIndicator color="#0EA5E9" size="small" /> : <Text style={{ color: '#0EA5E9', fontWeight: '700', fontSize: 13 }}>{vetSettings.clinic_logo_url ? 'Trocar' : 'Fazer upload'}</Text>}
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Assinatura digital */}

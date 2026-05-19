@@ -16,11 +16,12 @@ const DOC_TYPES = [
 
 export default function VetQuickDocScreen({ route, navigation }) {
   const { petId, petName, petSpecies } = route.params || {};
-  const { user, vetProfile } = useAuth();
+  const { user } = useAuth();
 
-  const [docType, setDocType] = useState('receita');
-  const [pet,     setPet]     = useState({ name: petName, species: petSpecies });
-  const [loading, setLoading] = useState(false);
+  const [docType,    setDocType]    = useState('receita');
+  const [pet,        setPet]        = useState({ name: petName, species: petSpecies });
+  const [freshVet,   setFreshVet]   = useState(null); // vetProfile fresh from DB
+  const [loading,    setLoading]    = useState(false);
 
   // Receita — lista de medicamentos
   const [medications, setMedications] = useState([{ name: '', dose: '', frequency: '', duration: '', instructions: '' }]);
@@ -35,11 +36,23 @@ export default function VetQuickDocScreen({ route, navigation }) {
   const [declText, setDeclText] = useState('');
 
   useEffect(() => {
+    // Fetch pet + vet profile fresh (context may be stale after photo upload)
+    const loads = [];
     if (petId) {
-      supabase.from('pets').select('name, species, breed').eq('id', petId).single()
-        .then(({ data }) => { if (data) setPet(data); });
+      loads.push(
+        supabase.from('pets').select('name, species, breed').eq('id', petId).single()
+          .then(({ data }) => { if (data) setPet(data); })
+      );
     }
-  }, [petId]);
+    if (user?.id) {
+      loads.push(
+        supabase.from('vet_profiles')
+          .select('full_name, crm, estado, specialty, clinic_name, clinic_address, signature_url, clinic_logo_url')
+          .eq('id', user.id).single()
+          .then(({ data }) => { if (data) setFreshVet(data); })
+      );
+    }
+  }, [petId, user?.id]);
 
   const addMed = () => setMedications(p => [...p, { name: '', dose: '', frequency: '', duration: '', instructions: '' }]);
   const removeMed = (i) => setMedications(p => p.filter((_, idx) => idx !== i));
@@ -48,15 +61,16 @@ export default function VetQuickDocScreen({ route, navigation }) {
   const handlePrint = async () => {
     setLoading(true);
     try {
+      const vet = freshVet || {};
       const vetData = {
-        full_name:       vetProfile?.full_name,
-        crm:             vetProfile?.crm,
-        estado:          vetProfile?.estado,
-        specialty:       vetProfile?.specialty,
-        clinic_name:     vetProfile?.clinic_name,
-        clinic_address:  vetProfile?.clinic_address,
-        clinic_logo_url: vetProfile?.clinic_logo_url,
-        signature_url:   vetProfile?.signature_url,
+        full_name:       vet.full_name,
+        crm:             vet.crm,
+        estado:          vet.estado,
+        specialty:       vet.specialty,
+        clinic_name:     vet.clinic_name,
+        clinic_address:  vet.clinic_address,
+        clinic_logo_url: vet.clinic_logo_url,
+        signature_url:   vet.signature_url,
       };
 
       let content = {};
@@ -179,11 +193,11 @@ export default function VetQuickDocScreen({ route, navigation }) {
       {/* Info assinatura */}
       <View style={styles.sigInfo}>
         <Text style={styles.sigInfoTxt}>
-          {vetProfile?.signature_url
+          {freshVet?.signature_url
             ? '✓ Assinatura digital incluída automaticamente'
             : '⚠ Sem assinatura — configure em Perfil → Assinatura digital'}
         </Text>
-        {vetProfile?.clinic_logo_url
+        {freshVet?.clinic_logo_url
           ? <Text style={[styles.sigInfoTxt, { color: '#16A34A' }]}>✓ Logo da clínica incluída</Text>
           : <Text style={[styles.sigInfoTxt, { color: '#94A3B8' }]}>• Sem logo — configure em Perfil</Text>}
       </View>

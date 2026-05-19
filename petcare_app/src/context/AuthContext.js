@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
     if (!userId) { setIsVet(false); setVetProfile(null); return; }
     const { data } = await supabase
       .from('vet_profiles')
-      .select('id, full_name, crm, estado, specialty, clinic_name, status, validated_at, chat_enabled, booking_enabled, booking_slug, signature_url')
+      .select('id, full_name, crm, estado, specialty, clinic_name, clinic_address, status, validated_at, chat_enabled, signature_url, clinic_logo_url')
       .eq('id', userId)
       .maybeSingle();
     setIsVet(!!data);

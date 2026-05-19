@@ -146,7 +146,7 @@ export default function VetPatientScreen({ route, navigation }) {
     if (weightForm.length_cm) extra.length_cm = parseFloat(weightForm.length_cm.replace(',', '.'));
     const { error } = await supabase.from('weight_records').insert({
       pet_id: petId,
-      user_id: pet.user_id,
+      user_id: user.id,
       weight_kg: kg,
       date: today,
       notes: weightForm.notes.trim() || null,
@@ -250,7 +250,7 @@ export default function VetPatientScreen({ route, navigation }) {
           <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('VetConsultation', { petId, petName: pet.name })} activeOpacity={0.85}>
             <LinearGradient colors={['#0284C7', '#0EA5E9']} style={s.actionBtnGrad}>
               <Image source={ICON_MEDICAL} style={s.actionIcon} resizeMode="contain" />
-              <Text style={s.actionLbl}>Nova{'\n'}Consulta</Text>
+              <Text style={s.actionLbl}>Registrar{'\n'}Consulta</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('VetAddAppointment', { petId, petName: pet.name, tutorId: pet.user_id })} activeOpacity={0.85}>

@@ -20,6 +20,7 @@ export default function TutorBookVetScreen({ route, navigation }) {
   const { petId, petName, vetId, vetName } = route.params || {};
   const { user } = useAuth();
 
+  // slots = [{ date, time, reserved }]
   const [slots,         setSlots]         = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [selectedSlot,  setSelectedSlot]  = useState(null);
@@ -31,43 +32,86 @@ export default function TutorBookVetScreen({ route, navigation }) {
 
   // Group slots by date
   const slotsByDate = slots.reduce((acc, s) => {
-    const key = s.slot_date;
+    const key = s.date;
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
     return acc;
   }, {});
 
-  useEffect(() => {
-    fetchSlots();
-  }, []);
+  useEffect(() => { fetchSlots(); }, []);
+
+  const addMinutes = (timeStr, mins) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    const total = h * 60 + m + mins;
+    return `${String(Math.floor(total / 60)).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
+  };
 
   const fetchSlots = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc('get_vet_available_slots', {
-      p_vet_id: vetId,
-      p_days: 21,
-    });
-    setLoading(false);
-    if (error || !data || data.length === 0) {
-      setNoAvailability(true);
-      return;
+    // 1. Busca template de disponibilidade do vet
+    const { data: avail } = await supabase
+      .from('vet_availability')
+      .select('day_of_week, start_time, end_time, slot_minutes')
+      .eq('vet_id', vetId).eq('active', true);
+
+    if (!avail || avail.length === 0) { setNoAvailability(true); setLoading(false); return; }
+
+    // 2. Busca agendamentos existentes (próximos 21 dias)
+    const today = new Date();
+    const startISO = today.toISOString().slice(0, 10);
+    const end = new Date(today); end.setDate(today.getDate() + 21);
+    const endISO = end.toISOString().slice(0, 10);
+
+    const { data: existing } = await supabase
+      .from('vet_schedule')
+      .select('scheduled_date, scheduled_time, status')
+      .eq('vet_id', vetId)
+      .gte('scheduled_date', startISO)
+      .lte('scheduled_date', endISO)
+      .not('status', 'in', '("cancelled","no_show")');
+
+    // Monta set de slots ocupados: "YYYY-MM-DD HH:MM"
+    const takenSet = new Set(
+      (existing || []).map(e => `${e.scheduled_date} ${String(e.scheduled_time).slice(0,5)}`)
+    );
+
+    // 3. Gera todos os slots para os próximos 21 dias
+    const allSlots = [];
+    for (let i = 0; i <= 21; i++) {
+      const d = new Date(today); d.setDate(today.getDate() + i);
+      const dow = d.getDay();
+      const dateISO = d.toISOString().slice(0, 10);
+      const dayAvails = avail.filter(a => a.day_of_week === dow);
+      dayAvails.forEach(a => {
+        const slotMins = a.slot_minutes || 30;
+        let cur = String(a.start_time).slice(0, 5);
+        const endT = String(a.end_time).slice(0, 5);
+        while (cur < endT) {
+          const key = `${dateISO} ${cur}`;
+          allSlots.push({ date: dateISO, time: cur, reserved: takenSet.has(key) });
+          cur = addMinutes(cur, slotMins);
+        }
+      });
     }
-    setSlots(data);
+
+    setSlots(allSlots);
+    setLoading(false);
+    if (allSlots.length === 0) setNoAvailability(true);
   };
 
   const handleConfirm = async () => {
-    if (!selectedSlot) return;
+    if (!selectedSlot || saving) return;
     setSaving(true);
     const { error } = await supabase.from('vet_schedule').insert({
-      vet_id:              vetId,
-      pet_id:              petId,
-      patient_name:        petName,
-      scheduled_date:      selectedSlot.slot_date,
-      scheduled_time:      selectedSlot.slot_time,
-      type:                apptType,
-      status:              'pending_approval',
+      vet_id:               vetId,
+      pet_id:               petId,
+      patient_name:         petName,
+      scheduled_date:       selectedSlot.date,
+      scheduled_time:       selectedSlot.time,
+      type:                 apptType,
+      status:               'pending_approval',
       requested_by_user_id: user.id,
-      request_message:     message.trim() || null,
+      request_message:      message.trim() || null,
     });
     setSaving(false);
     if (!error) setSuccess(true);
@@ -140,14 +184,22 @@ export default function TutorBookVetScreen({ route, navigation }) {
       <Text style={styles.label}>Horários disponíveis</Text>
       {Object.entries(slotsByDate).map(([date, daySlots]) => {
         const [y, m, d] = date.split('-');
-        const dow = new Date(date + 'T12:00:00').getDay();
+        const dow = new Date(`${date}T12:00:00`).getDay();
         return (
           <View key={date} style={styles.dayBlock}>
             <Text style={styles.dayLabel}>{d}/{m} · {DAY_NAMES[dow]}</Text>
             <View style={styles.slotsRow}>
               {daySlots.map((s) => {
-                const key = `${s.slot_date}-${s.slot_time}`;
-                const isSelected = selectedSlot && `${selectedSlot.slot_date}-${selectedSlot.slot_time}` === key;
+                const key = `${s.date}-${s.time}`;
+                const isSelected = selectedSlot && `${selectedSlot.date}-${selectedSlot.time}` === key;
+                if (s.reserved) {
+                  return (
+                    <View key={key} style={styles.slotChipReserved}>
+                      <Text style={styles.slotTxtReserved}>{s.time}</Text>
+                      <Text style={styles.slotTxtReservedLabel}>Reservado</Text>
+                    </View>
+                  );
+                }
                 return (
                   <TouchableOpacity
                     key={key}
@@ -155,9 +207,7 @@ export default function TutorBookVetScreen({ route, navigation }) {
                     onPress={() => setSelectedSlot(s)}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.slotTxt, isSelected && styles.slotTxtActive]}>
-                      {String(s.slot_time).slice(0, 5)}
-                    </Text>
+                    <Text style={[styles.slotTxt, isSelected && styles.slotTxtActive]}>{s.time}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -181,7 +231,7 @@ export default function TutorBookVetScreen({ route, navigation }) {
       {selectedSlot && (
         <View style={styles.selectedInfo}>
           <Text style={styles.selectedInfoTxt}>
-            ✓ Selecionado: {String(selectedSlot.slot_date).split('-').reverse().join('/')} às {String(selectedSlot.slot_time).slice(0, 5)}
+            ✓ Selecionado: {selectedSlot.date.split('-').reverse().join('/')} às {selectedSlot.time}
           </Text>
         </View>
       )}
@@ -234,6 +284,9 @@ const styles = StyleSheet.create({
   slotChipActive: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
   slotTxt: { fontSize: 13, fontWeight: '700', color: '#0EA5E9' },
   slotTxtActive: { color: '#fff' },
+  slotChipReserved: { backgroundColor: 'rgba(248,250,252,0.6)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1.5, borderColor: '#E2E8F0', alignItems: 'center' },
+  slotTxtReserved: { fontSize: 12, fontWeight: '600', color: '#CBD5E1' },
+  slotTxtReservedLabel: { fontSize: 9, color: '#CBD5E1', fontWeight: '500' },
 
   input: { backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, borderWidth: 1.5, borderColor: '#E0F2FE', color: '#1E293B', marginBottom: 12 },
 

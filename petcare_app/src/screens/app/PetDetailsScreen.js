@@ -240,6 +240,8 @@ export default function PetDetailsScreen({ route, navigation }) {
 
   // Veterinários com acesso
   const [vetLinks, setVetLinks] = useState([]);
+  const [vetConsultations, setVetConsultations] = useState([]); // vet_consultations
+  const [selectedConsult, setSelectedConsult] = useState(null); // popup card
   // Sub-aba dentro de "vets"
   const [vetSubTab, setVetSubTab] = useState('registros');
   // Agendamentos + perfis dos vets dos agendamentos
@@ -257,7 +259,7 @@ export default function PetDetailsScreen({ route, navigation }) {
   const [apptRequestSaving, setApptRequestSaving] = useState(false);
 
   const fetchData = async () => {
-    const [petRes, vacRes, expRes, wRes, medRes, profileRes, linksRes, apptRes, schedRes] = await Promise.all([
+    const [petRes, vacRes, expRes, wRes, medRes, profileRes, linksRes, apptRes, schedRes, consultRes] = await Promise.all([
       supabase.from('pets').select('*').eq('id', petId).single(),
       supabase.from('vaccines').select('*').eq('pet_id', petId).order('applied_date', { ascending: false }),
       supabase.from('expenses').select('*').eq('pet_id', petId).order('date', { ascending: false }),
@@ -267,6 +269,7 @@ export default function PetDetailsScreen({ route, navigation }) {
       supabase.from('pet_vet_links').select('id, vet_id, linked_at').eq('pet_id', petId).eq('status', 'active'),
       supabase.from('appointments').select('*').eq('pet_id', petId).order('scheduled_date', { ascending: true }),
       supabase.from('vet_schedule').select('*').eq('pet_id', petId).order('scheduled_date', { ascending: true }),
+      supabase.from('vet_consultations').select('*').eq('pet_id', petId).eq('visible_to_owner', true).order('date', { ascending: false }),
     ]);
     if (petRes.data) {
       setPet(petRes.data);
@@ -280,6 +283,7 @@ export default function PetDetailsScreen({ route, navigation }) {
     const appts = apptRes.data || [];
     setAppointments(appts);
     if (schedRes.data) setVetScheduleAppts(schedRes.data);
+    if (consultRes.data) setVetConsultations(consultRes.data);
 
     // Coleta todos os vet_ids únicos (de links + agendamentos)
     const linkIds = linksRes.data?.map(l => l.vet_id) || [];
@@ -1002,57 +1006,84 @@ export default function PetDetailsScreen({ route, navigation }) {
               </View>
 
               {/* ── Conteúdo: Registros ── */}
-              {vetSubTab === 'registros' && (
-                vetRecords.length === 0 ? (
+              {vetSubTab === 'registros' && (() => {
+                const CONSULT_LABELS = {
+                  consulta: { label: 'Consulta', color: '#0EA5E9', bg: '#EFF6FF' },
+                  retorno:  { label: 'Retorno',  color: '#10B981', bg: '#DCFCE7' },
+                  cirurgia: { label: 'Cirurgia', color: '#8B5CF6', bg: '#EDE9FE' },
+                  exame:    { label: 'Exame',    color: '#F59E0B', bg: '#FEF3C7' },
+                  outro:    { label: 'Procedimento', color: '#64748B', bg: '#F1F5F9' },
+                };
+                // Combina vet_consultations + medical_records do vet
+                const allRecords = [
+                  ...vetConsultations.map(c => ({ ...c, _src: 'consultation' })),
+                  ...vetRecords.map(r => ({ ...r, _src: 'medical_record' })),
+                ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                return allRecords.length === 0 ? (
                   <View style={styles.emptyCard}>
                     <Image source={require('../../../assets/icon_medical.png')} style={{ width: 44, height: 44, marginBottom: 10, opacity: 0.35 }} resizeMode="contain" />
                     <Text style={styles.emptyText}>Nenhum registro veterinário ainda</Text>
-                    <Text style={styles.emptySubText}>
-                      Consultas, prescrições e exames{'\n'}registrados pelo veterinário aparecerão aqui
-                    </Text>
+                    <Text style={styles.emptySubText}>Consultas e registros do veterinário aparecerão aqui</Text>
                   </View>
                 ) : (
-                  vetRecords.map(r => {
-                    const cfg = typeConfig[r.type] || typeConfig.outro;
-                    return (
-                      <View key={r.id} style={styles.vetRecordCard}>
-                        <View style={styles.vetRecordTop}>
-                          <View style={[styles.vetRecordIconWrap, { backgroundColor: cfg.bg }]}>
-                            <Image source={cfg.icon} style={{ width: 20, height: 20 }} resizeMode="contain" />
+                  <>
+                    {allRecords.map(r => {
+                      if (r._src === 'consultation') {
+                        const cfg = CONSULT_LABELS[r.type] || CONSULT_LABELS.outro;
+                        return (
+                          <TouchableOpacity
+                            key={`c-${r.id}`}
+                            style={styles.vetRecordCard}
+                            onPress={() => setSelectedConsult(r)}
+                            activeOpacity={0.78}
+                          >
+                            <View style={styles.vetRecordTop}>
+                              <View style={[styles.vetRecordIconWrap, { backgroundColor: cfg.bg }]}>
+                                <Image source={require('../../../assets/icon_medical.png')} style={{ width: 20, height: 20 }} resizeMode="contain" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.vetRecordTitle}>{r.chief_complaint || 'Consulta veterinária'}</Text>
+                                <Text style={styles.vetRecordMeta}>{cfg.label} · {formatDate(r.date)}{r.weight_at_visit ? ` · ${r.weight_at_visit}kg` : ''}</Text>
+                              </View>
+                              <View style={[styles.vetRecordTypeBadge, { backgroundColor: cfg.bg }]}>
+                                <Text style={[styles.vetRecordTypeText, { color: cfg.color }]}>{cfg.label}</Text>
+                              </View>
+                              <Text style={{ color: '#94A3B8', fontSize: 18, marginLeft: 6 }}>›</Text>
+                            </View>
+                            {r.diagnosis && <Text style={[styles.vetRecordField, { color: '#15803D', fontStyle: 'italic' }]} numberOfLines={1}>Diagnóstico: {r.diagnosis}</Text>}
+                          </TouchableOpacity>
+                        );
+                      }
+                      // medical_record
+                      const cfg2 = typeConfig[r.type] || typeConfig.outro;
+                      return (
+                        <TouchableOpacity
+                          key={`m-${r.id}`}
+                          style={styles.vetRecordCard}
+                          onPress={() => setSelectedConsult({ ...r, _isMedRecord: true, chief_complaint: r.title })}
+                          activeOpacity={0.78}
+                        >
+                          <View style={styles.vetRecordTop}>
+                            <View style={[styles.vetRecordIconWrap, { backgroundColor: cfg2.bg }]}>
+                              <Image source={cfg2.icon} style={{ width: 20, height: 20 }} resizeMode="contain" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.vetRecordTitle}>{r.title}</Text>
+                              <Text style={styles.vetRecordMeta}>{cfg2.label} · {formatDate(r.date)}</Text>
+                            </View>
+                            <View style={[styles.vetRecordTypeBadge, { backgroundColor: cfg2.bg }]}>
+                              <Text style={[styles.vetRecordTypeText, { color: cfg2.color }]}>{cfg2.label}</Text>
+                            </View>
+                            <Text style={{ color: '#94A3B8', fontSize: 18, marginLeft: 6 }}>›</Text>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.vetRecordTitle}>{r.title}</Text>
-                            <Text style={styles.vetRecordMeta}>
-                              {cfg.label}
-                              {r.veterinarian ? ` · Dr(a). ${r.veterinarian}` : ''}
-                              {' · '}{formatDate(r.date)}
-                            </Text>
-                          </View>
-                          <View style={[styles.vetRecordTypeBadge, { backgroundColor: cfg.bg }]}>
-                            <Text style={[styles.vetRecordTypeText, { color: cfg.color }]}>{cfg.label}</Text>
-                          </View>
-                        </View>
-                        {r.description && <Text style={styles.vetRecordField}>{r.description}</Text>}
-                        {r.diagnosis && (
-                          <View style={styles.vetRecordDetail}>
-                            <Text style={styles.vetRecordDetailLabel}>Diagnóstico</Text>
-                            <Text style={styles.vetRecordDetailValue}>{r.diagnosis}</Text>
-                          </View>
-                        )}
-                        {r.prescription && (
-                          <View style={[styles.vetRecordDetail, { backgroundColor: '#FCE7F3', borderColor: '#FBCFE8' }]}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                            <Image source={require('../../../assets/icon_medicine.png')} style={{ width: 13, height: 13 }} resizeMode="contain" />
-                            <Text style={[styles.vetRecordDetailLabel, { color: '#BE185D', marginBottom: 0 }]}>Prescrição</Text>
-                          </View>
-                            <Text style={styles.vetRecordDetailValue}>{r.prescription}</Text>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })
-                )
-              )}
+                          {r.diagnosis && <Text style={[styles.vetRecordField, { color: '#15803D', fontStyle: 'italic' }]} numberOfLines={1}>Diagnóstico: {r.diagnosis}</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </>
+                );
+              })()}
 
               {/* ── Conteúdo: Agendamentos ── */}
               {vetSubTab === 'agendamentos' && (
@@ -1386,6 +1417,67 @@ export default function PetDetailsScreen({ route, navigation }) {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* ── Popup detalhes de consulta ── */}
+      <Modal visible={!!selectedConsult} transparent animationType="slide" onRequestClose={() => setSelectedConsult(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} activeOpacity={1} onPress={() => setSelectedConsult(null)} />
+        <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '80%' }}>
+          <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }}>
+              <Image source={require('../../../assets/icon_medical.png')} style={{ width: 22, height: 22 }} resizeMode="contain" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E293B' }}>{selectedConsult?.chief_complaint || 'Consulta'}</Text>
+              <Text style={{ fontSize: 12, color: '#64748B' }}>{formatDate(selectedConsult?.date)}{selectedConsult?.weight_at_visit ? ` · ${selectedConsult.weight_at_visit}kg` : ''}{selectedConsult?.temperature ? ` · 🌡 ${selectedConsult.temperature}°C` : ''}</Text>
+            </View>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {selectedConsult?.chief_complaint && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0EA5E9', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Queixa</Text>
+                <Text style={{ fontSize: 14, color: '#1E293B', lineHeight: 20 }}>{selectedConsult.chief_complaint}</Text>
+              </View>
+            )}
+            {selectedConsult?.diagnosis && (
+              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#BBF7D0' }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#15803D', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Diagnóstico</Text>
+                <Text style={{ fontSize: 14, color: '#1E293B', lineHeight: 20 }}>{selectedConsult.diagnosis}</Text>
+              </View>
+            )}
+            {selectedConsult?.treatment_plan && (
+              <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#BAE6FD' }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#0369A1', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Plano terapêutico</Text>
+                <Text style={{ fontSize: 14, color: '#1E293B', lineHeight: 20 }}>{selectedConsult.treatment_plan}</Text>
+              </View>
+            )}
+            {selectedConsult?.prescription && (
+              <View style={{ backgroundColor: '#FCE7F3', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#FBCFE8' }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#BE185D', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Prescrição</Text>
+                <Text style={{ fontSize: 14, color: '#1E293B', lineHeight: 20 }}>{selectedConsult.prescription}</Text>
+              </View>
+            )}
+            {selectedConsult?.notes && (
+              <View style={{ marginBottom: 10 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Observações</Text>
+                <Text style={{ fontSize: 14, color: '#1E293B', lineHeight: 20 }}>{selectedConsult.notes}</Text>
+              </View>
+            )}
+            {selectedConsult?.description && (
+              <View style={{ marginBottom: 10 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Descrição</Text>
+                <Text style={{ fontSize: 14, color: '#1E293B', lineHeight: 20 }}>{selectedConsult.description}</Text>
+              </View>
+            )}
+          </ScrollView>
+          <TouchableOpacity
+            style={{ marginTop: 16, backgroundColor: '#F1F5F9', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+            onPress={() => setSelectedConsult(null)}
+          >
+            <Text style={{ color: '#64748B', fontWeight: '700' }}>Fechar</Text>
+          </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* ── Popup ações do veterinário ── */}
