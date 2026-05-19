@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert, RefreshControl, Platform, Image, Switch,
+  TextInput, ActivityIndicator, Alert, RefreshControl, Platform, Image, Switch, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -50,7 +50,7 @@ function Row({ icon, label, value, onPress, danger }) {
 export default function ProfileScreen({ navigation }) {
   const { user, signOut, plan, isPremium, isVet } = useAuth();
   const { maxViewers } = usePlan();
-  const [profile, setProfile] = useState({ full_name: '', phone: '', address: '', avatar_url: '' });
+  const [profile, setProfile] = useState({ full_name: '', phone: '', address: '', avatar_url: '', is_admin: false });
   const [vetData, setVetData] = useState({ specialty: '', clinic_name: '', clinic_address: '' });
   const [stats, setStats] = useState({ pets: 0, vaccines: 0, totalExpenses: 0 });
   const [vetStats, setVetStats] = useState({ patients: 0, consultations: 0, monthRevenue: 0 });
@@ -606,7 +606,24 @@ export default function ProfileScreen({ navigation }) {
         <Section title="App">
           <Row icon={ICONS.fred} label="Fred — Assistente IA" value={isPremium ? 'Ativo' : 'Premium'} />
           <Row icon={ICONS.app}  label="Versão" value="1.0.0" />
+          <Row
+            icon={ICONS.email}
+            label="Fale conosco"
+            value="suporte.petcareplus@gmail.com"
+            onPress={() => Linking.openURL('mailto:suporte.petcareplus@gmail.com?subject=Suporte PetCare+')}
+          />
         </Section>
+
+        {profile.is_admin && (
+          <Section title="Administração">
+            <Row
+              icon={ICONS.medical}
+              label="Aprovar veterinários"
+              value="Gerenciar cadastros pendentes"
+              onPress={() => navigation.navigate('VetAdmin')}
+            />
+          </Section>
+        )}
 
         <Section title="Sessão">
           <Row icon={ICONS.logout} label="Sair da conta" onPress={handleSignOut} danger />

@@ -84,6 +84,19 @@ export default function VetQuickDocScreen({ route, navigation }) {
 
       const html = generateQuickDocHTML({ type: docType, pet, vet: vetData, content });
       const label = DOC_TYPES.find(d => d.key === docType)?.label || 'documento';
+
+      // Salva na nuvem antes de imprimir
+      await supabase.from('vet_documents').insert({
+        vet_id:       user.id,
+        pet_id:       petId || null,
+        type:         docType,
+        title:        `${label} — ${pet?.name || 'Paciente'}`,
+        patient_name: pet?.name || null,
+        content_json: content,
+        vet_snapshot: { full_name: vet.full_name, crm: vet.crm, estado: vet.estado, clinic_name: vet.clinic_name },
+        html_content: html,
+      });
+
       await exportReport(html, `${label}_${pet?.name || 'paciente'}.pdf`);
     } catch (e) {
       console.warn('Erro ao gerar documento:', e);

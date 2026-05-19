@@ -241,6 +241,7 @@ export default function PetDetailsScreen({ route, navigation }) {
   // Veterinários com acesso
   const [vetLinks, setVetLinks] = useState([]);
   const [vetConsultations, setVetConsultations] = useState([]); // vet_consultations
+  const [vetDocuments,    setVetDocuments]    = useState([]); // vet_documents (receitas, atestados)
   const [selectedConsult, setSelectedConsult] = useState(null); // popup card
   // Sub-aba dentro de "vets"
   const [vetSubTab, setVetSubTab] = useState('registros');
@@ -261,7 +262,7 @@ export default function PetDetailsScreen({ route, navigation }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   const fetchData = async () => {
-    const [petRes, vacRes, expRes, wRes, medRes, profileRes, linksRes, apptRes, schedRes, consultRes] = await Promise.all([
+    const [petRes, vacRes, expRes, wRes, medRes, profileRes, linksRes, apptRes, schedRes, consultRes, docsRes] = await Promise.all([
       supabase.from('pets').select('*').eq('id', petId).single(),
       supabase.from('vaccines').select('*').eq('pet_id', petId).order('applied_date', { ascending: false }),
       supabase.from('expenses').select('*').eq('pet_id', petId).order('date', { ascending: false }),
@@ -272,6 +273,7 @@ export default function PetDetailsScreen({ route, navigation }) {
       supabase.from('appointments').select('*').eq('pet_id', petId).order('scheduled_date', { ascending: true }),
       supabase.from('vet_schedule').select('*').eq('pet_id', petId).order('scheduled_date', { ascending: true }),
       supabase.from('vet_consultations').select('*').eq('pet_id', petId).eq('visible_to_owner', true).order('date', { ascending: false }),
+      supabase.from('vet_documents').select('id, type, title, patient_name, vet_snapshot, html_content, created_at').eq('pet_id', petId).order('created_at', { ascending: false }),
     ]);
     if (petRes.data) {
       setPet(petRes.data);
@@ -286,6 +288,7 @@ export default function PetDetailsScreen({ route, navigation }) {
     setAppointments(appts);
     if (schedRes.data) setVetScheduleAppts(schedRes.data);
     if (consultRes.data) setVetConsultations(consultRes.data);
+    if (docsRes?.data)   setVetDocuments(docsRes.data);
 
     // Coleta todos os vet_ids únicos (de links + agendamentos)
     const linkIds = linksRes.data?.map(l => l.vet_id) || [];
@@ -1061,9 +1064,10 @@ export default function PetDetailsScreen({ route, navigation }) {
                 };
                 // Combina vet_consultations + medical_records do vet
                 const allRecords = [
-                  ...vetConsultations.map(c => ({ ...c, _src: 'consultation' })),
-                  ...vetRecords.map(r => ({ ...r, _src: 'medical_record' })),
-                ].sort((a, b) => new Date(b.date) - new Date(a.date));
+                  ...vetConsultations.map(c => ({ ...c, _src: 'consultation', _sortDate: c.date })),
+                  ...vetRecords.map(r => ({ ...r, _src: 'medical_record', _sortDate: r.date })),
+                  ...vetDocuments.map(d => ({ ...d, _src: 'document', _sortDate: d.created_at, date: d.created_at })),
+                ].sort((a, b) => new Date(b._sortDate) - new Date(a._sortDate));
 
                 return allRecords.length === 0 ? (
                   <View style={styles.emptyCard}>
@@ -1100,6 +1104,55 @@ export default function PetDetailsScreen({ route, navigation }) {
                           </TouchableOpacity>
                         );
                       }
+                      if (r._src === 'document') {
+                        // Documento clínico (receita, atestado, declaração)
+                        const docColors = {
+                          receita:    { label: 'Receita Médica',    color: '#7C3AED', bg: '#EDE9FE', emoji: '💊' },
+                          atestado:   { label: 'Atestado de Saúde', color: '#0284C7', bg: '#EFF6FF', emoji: '🩺' },
+                          declaracao: { label: 'Declaração',        color: '#10B981', bg: '#DCFCE7', emoji: '📄' },
+                        };
+                        const dc = docColors[r.type] || { label: 'Documento', color: '#64748B', bg: '#F1F5F9', emoji: '📄' };
+                        const vetSnap = r.vet_snapshot || {};
+                        return (
+                          <TouchableOpacity
+                            key={`d-${r.id}`}
+                            style={[styles.vetRecordCard, { borderLeftWidth: 3, borderLeftColor: dc.color }]}
+                            onPress={async () => {
+                              if (r.html_content) {
+                                if (typeof window !== 'undefined') {
+                                  const win = window.open('', '_blank');
+                                  if (win) { win.document.write(r.html_content); win.document.close(); win.focus(); setTimeout(() => win.print(), 500); }
+                                } else {
+                                  try {
+                                    const Print = await import('expo-print');
+                                    const { uri } = await Print.printToFileAsync({ html: r.html_content });
+                                    const Sharing = await import('expo-sharing');
+                                    if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf' });
+                                  } catch (e) { console.warn(e); }
+                                }
+                              }
+                            }}
+                            activeOpacity={0.78}
+                          >
+                            <View style={styles.vetRecordTop}>
+                              <View style={[styles.vetRecordIconWrap, { backgroundColor: dc.bg }]}>
+                                <Text style={{ fontSize: 18 }}>{dc.emoji}</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.vetRecordTitle}>{r.title || dc.label}</Text>
+                                <Text style={styles.vetRecordMeta}>
+                                  {dc.label} · {formatDate(r.created_at)}
+                                  {vetSnap.full_name ? ` · Dr(a). ${vetSnap.full_name.split(' ')[0]}` : ''}
+                                </Text>
+                              </View>
+                              <View style={[styles.vetRecordTypeBadge, { backgroundColor: dc.bg }]}>
+                                <Text style={[styles.vetRecordTypeText, { color: dc.color }]}>📥 Baixar</Text>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      }
+
                       // medical_record
                       const cfg2 = typeConfig[r.type] || typeConfig.outro;
                       return (
