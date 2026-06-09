@@ -11,8 +11,8 @@ import { useAuth } from '../../context/AuthContext';
 const LOGO = require('../../../assets/logo_background.png');
 
 export default function ClinicDashboardScreen({ navigation, route }) {
-  const { clinicId } = route.params || {};
-  const { user } = useAuth();
+  const { user, vetProfile } = useAuth();
+  const clinicId = route?.params?.clinicId || vetProfile?.clinic_id;
 
   const [clinic,       setClinic]       = useState(null);
   const [myRole,       setMyRole]       = useState(null);
@@ -239,6 +239,18 @@ export default function ClinicDashboardScreen({ navigation, route }) {
               <View style={[styles.actionGradient, { backgroundColor: '#F5F3FF', borderWidth: 1.5, borderColor: '#DDD6FE' }]}>
                 <Text style={styles.actionIcon}>👥</Text>
                 <Text style={[styles.actionLabel, { color: '#7C3AED' }]}>Equipe</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          {isOwnerOrAdmin && (
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('ClinicServices', { clinicId, canEdit: isOwnerOrAdmin })}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.actionGradient, { backgroundColor: '#F5F3FF', borderWidth: 1.5, borderColor: '#DDD6FE' }]}>
+                <Text style={styles.actionIcon}>🩺</Text>
+                <Text style={[styles.actionLabel, { color: '#7C3AED' }]}>Serviços</Text>
               </View>
             </TouchableOpacity>
           )}

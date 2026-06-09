@@ -57,6 +57,7 @@ import ClinicProductsScreen       from '../screens/clinic/ClinicProductsScreen';
 import ClinicSaleScreen           from '../screens/clinic/ClinicSaleScreen';
 import ClinicOrderScreen          from '../screens/clinic/ClinicOrderScreen';
 import ClinicReceptionScreen      from '../screens/clinic/ClinicReceptionScreen';
+import ClinicServicesScreen       from '../screens/clinic/ClinicServicesScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -85,7 +86,7 @@ const TAB_ROUTE_CONFIG = {
   ExpensesTab:     { icon: TAB_ICONS.expenses, label: 'Gastos'     },
   MapTab:          { icon: TAB_ICONS.map,      label: 'Mapa'       },
   ProfileTab:      { icon: TAB_ICONS.profile,  label: 'Perfil'     },
-  VetHomeTab:      { icon: TAB_ICONS.medical,  label: 'Pacientes'  },
+  VetHomeTab:      { icon: TAB_ICONS.home,     label: 'Início'     },
   VetCalendarTab:  { icon: TAB_ICONS.late,     label: 'Agenda'     },
   VetFinancialTab: { icon: TAB_ICONS.expenses, label: 'Financeiro' },
 };
@@ -227,7 +228,25 @@ function TutorStack() {
 }
 
 // ─── VETERINÁRIO ──────────────────────────────────────────────
+
+// Home: ClinicDashboard se tem clínica, VetDashboard se solo
+function VetHomeWrapper(props) {
+  const { vetProfile } = useAuth();
+  if (vetProfile?.clinic_id) {
+    return (
+      <ClinicDashboardScreen
+        {...props}
+        route={{ ...(props.route || {}), params: { clinicId: vetProfile.clinic_id } }}
+      />
+    );
+  }
+  return <VetDashboardScreen {...props} />;
+}
+
 function VetTabs() {
+  const { vetProfile } = useAuth();
+  const hasClinic = !!vetProfile?.clinic_id;
+
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -240,14 +259,9 @@ function VetTabs() {
       >
         <Tab.Screen
           name="VetHomeTab"
-          component={VetDashboardScreen}
+          component={VetHomeWrapper}
           options={{
-            headerTitle: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Image source={LOGO} style={{ width: 30, height: 30 }} resizeMode="contain" />
-                <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>PetCare+</Text>
-              </View>
-            ),
+            headerShown: false,
           }}
         />
         <Tab.Screen name="VetCalendarTab"  component={VetCalendarScreen}  options={{ headerTitle: 'Agenda'      }} />
@@ -299,6 +313,7 @@ function VetStack() {
       <Stack.Screen name="ClinicSale"      component={ClinicSaleScreen}      options={{ headerShown: false }} />
       <Stack.Screen name="ClinicOrder"     component={ClinicOrderScreen}     options={{ headerShown: false }} />
       <Stack.Screen name="ClinicReception" component={ClinicReceptionScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicServices"  component={ClinicServicesScreen}  options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
