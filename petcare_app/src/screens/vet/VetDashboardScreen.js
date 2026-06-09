@@ -49,6 +49,7 @@ export default function VetDashboardScreen({ navigation }) {
   const [codeLoading,       setCodeLoading]       = useState(false);
   const [codeError,         setCodeError]         = useState('');
   const [codeSuccess,       setCodeSuccess]       = useState('');
+  const [clinicName,        setClinicName]        = useState('');
 
   const fetchData = async () => {
     const todayISO    = new Date().toISOString().slice(0, 10);
@@ -102,6 +103,13 @@ export default function VetDashboardScreen({ navigation }) {
       setMonthRevenue(billingRes.data.filter(b => b.status === 'paid').reduce((s, b) => s + (b.amount || 0), 0));
     }
     setUnreadChats(unreadRes.count ?? 0);
+
+    // Busca nome da clínica se o vet for membro de uma
+    if (vetProfile?.clinic_id) {
+      const { data: clinic } = await supabase
+        .from('clinics').select('name').eq('id', vetProfile.clinic_id).single();
+      setClinicName(clinic?.name || '');
+    }
 
     setLoading(false);
     setRefreshing(false);
@@ -233,6 +241,36 @@ export default function VetDashboardScreen({ navigation }) {
           <Text style={styles.statLabel}>Pendente</Text>
         </View>
       </View>
+
+      {/* Clínica */}
+      <TouchableOpacity
+        style={styles.clinicBtn}
+        onPress={() => {
+          if (vetProfile?.clinic_id) {
+            navigation.navigate('ClinicDashboard', { clinicId: vetProfile.clinic_id });
+          } else {
+            navigation.navigate('ClinicSetup');
+          }
+        }}
+        activeOpacity={0.82}
+      >
+        <LinearGradient
+          colors={vetProfile?.clinic_id ? ['#7C3AED', '#A78BFA'] : ['#F5F3FF', '#F5F3FF']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={styles.clinicBtnInner}
+        >
+          <Text style={styles.clinicBtnIcon}>🏥</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.clinicBtnTitle, !vetProfile?.clinic_id && { color: '#7C3AED' }]}>
+              {vetProfile?.clinic_id ? (clinicName || 'Minha Clínica') : 'Criar Clínica'}
+            </Text>
+            <Text style={[styles.clinicBtnSub, !vetProfile?.clinic_id && { color: '#A78BFA' }]}>
+              {vetProfile?.clinic_id ? 'Painel · Equipe · Vendas' : 'PetCare+ Clínica — gerencie sua equipe'}
+            </Text>
+          </View>
+          <Text style={[styles.clinicArrow, !vetProfile?.clinic_id && { color: '#7C3AED' }]}>›</Text>
+        </LinearGradient>
+      </TouchableOpacity>
 
       {/* Chat */}
       <TouchableOpacity
@@ -488,6 +526,13 @@ const styles = StyleSheet.create({
   heroCrm:   { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4, fontWeight: '600' },
 
   statsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 16, marginBottom: 6 },
+
+  clinicBtn:      { marginHorizontal: 16, marginTop: 10, borderRadius: 16, overflow: 'hidden' },
+  clinicBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1.5, borderColor: '#DDD6FE', borderRadius: 16 },
+  clinicBtnIcon:  { fontSize: 26 },
+  clinicBtnTitle: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  clinicBtnSub:   { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  clinicArrow:    { color: '#fff', fontSize: 20 },
 
   chatBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

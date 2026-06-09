@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { usePlan } from '../../hooks/usePlan';
+import { supabase } from '../../lib/supabase';
 
 const ICON_CHECK   = require('../../../assets/icon_check.png');
 const ICON_MEDICAL = require('../../../assets/icon_medical.png');
@@ -74,14 +78,109 @@ const PLANS = [
   },
 ];
 
-const PLAN_LABEL = { basic: 'BÁSICO', premium: 'PREMIUM', vet: 'VETERINÁRIO' };
+const CLINIC_PLANS = [
+  {
+    id: 'clinic_starter',
+    name: 'Clínica Starter',
+    color: '#059669',
+    gradientColors: ['#059669', '#10B981'],
+    monthlyPrice: 79.90,
+    annualPrice: 799,
+    annualMonthly: 66.58,
+    features: [
+      { label: 'Até 5 veterinários', included: true },
+      { label: 'Prontuários compartilhados', included: true },
+      { label: 'Catálogo de produtos', included: true },
+      { label: 'PDV (ponto de venda)', included: true },
+      { label: 'Controle de estoque', included: true },
+      { label: 'Relatório de vendas', included: true },
+      { label: 'Vets ilimitados', included: false },
+      { label: 'Múltiplas clínicas', included: false },
+    ],
+  },
+  {
+    id: 'clinic_pro',
+    name: 'Clínica Pro',
+    color: '#D97706',
+    gradientColors: ['#D97706', '#F59E0B'],
+    monthlyPrice: 149.90,
+    annualPrice: 1499,
+    annualMonthly: 124.92,
+    popular: true,
+    features: [
+      { label: 'Vets ilimitados', included: true },
+      { label: 'Prontuários compartilhados', included: true },
+      { label: 'PDV avançado', included: true },
+      { label: 'Controle de estoque avançado', included: true },
+      { label: 'Relatórios financeiros', included: true },
+      { label: 'Múltiplas clínicas', included: true },
+      { label: 'Painel administrativo', included: true },
+      { label: 'Suporte prioritário', included: true },
+    ],
+  },
+];
+
+const PLAN_LABEL = { basic: 'BÁSICO', premium: 'PREMIUM', vet: 'VETERINÁRIO', clinic_starter: 'CLÍNICA STARTER', clinic_pro: 'CLÍNICA PRO' };
 
 export default function PlanScreen() {
-  const { plan } = useAuth();
+  const { plan, reloadPlan, user, isVet } = useAuth();
   const { isPremium } = usePlan();
-  const [annual, setAnnual] = useState(false);
+  const [annual, setAnnual]     = useState(false);
+  const [loading, setLoading]   = useState(null); // plan id sendo processado
 
   const currentPlanData = PLANS.find(p => p.id === plan) || PLANS[0];
+
+  // Ao voltar para a tela (após fechar o browser do Stripe), atualiza o plano
+  useFocusEffect(useCallback(() => {
+    reloadPlan?.();
+  }, []));
+
+  const handleSubscribe = async (planId) => {
+    if (loading) return;
+    setLoading(planId);
+    try {
+      const billing = annual ? 'annual' : 'monthly';
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/create-checkout-session`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            planId,
+            billing,
+            userId: user.id,
+            userEmail: user.email,
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        Alert.alert('Erro', data.error || 'Não foi possível iniciar o pagamento.');
+        return;
+      }
+
+      // Abre a página de checkout do Stripe no browser
+      await WebBrowser.openBrowserAsync(data.url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+      });
+
+      // Ao fechar o browser, recarrega o plano
+      await reloadPlan?.();
+
+    } catch (err) {
+      Alert.alert('Erro', 'Falha ao conectar com o servidor de pagamentos.');
+      console.error('[PlanScreen] checkout error:', err);
+    } finally {
+      setLoading(null);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -189,13 +288,21 @@ export default function PlanScreen() {
             {/* CTA */}
             {!isCurrentPlan && (
               <View style={styles.ctaWrap}>
-                <LinearGradient
-                  colors={p.gradientColors}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.ctaBtn}
+                <TouchableOpacity
+                  onPress={() => handleSubscribe(p.id)}
+                  disabled={!!loading}
+                  activeOpacity={0.82}
                 >
-                  <Text style={styles.ctaBtnText}>Em breve</Text>
-                </LinearGradient>
+                  <LinearGradient
+                    colors={p.gradientColors}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={styles.ctaBtn}
+                  >
+                    {loading === p.id
+                      ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={styles.ctaBtnText}>Assinar agora</Text>}
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -203,13 +310,109 @@ export default function PlanScreen() {
         );
       })}
 
-      {/* Aviso pagamentos */}
-      <View style={styles.comingSoonCard}>
-        <Text style={styles.comingSoonTitle}>Pagamentos em breve</Text>
-        <Text style={styles.comingSoonText}>
-          Estamos integrando os sistemas de pagamento. Em breve você poderá assinar ou mudar de plano diretamente pelo app.
+      {/* Planos Clínica — visível apenas para vets */}
+      {isVet && (
+        <>
+          <View style={styles.clinicSectionHeader}>
+            <LinearGradient
+              colors={['#059669', '#10B981']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.clinicSectionBadge}
+            >
+              <Text style={styles.clinicSectionBadgeText}>🏥  PLANOS CLÍNICA</Text>
+            </LinearGradient>
+            <Text style={styles.clinicSectionSub}>
+              Gerencie equipe, estoque e vendas da sua clínica
+            </Text>
+          </View>
+
+          {CLINIC_PLANS.map(p => {
+            const isCurrentPlan = p.id === plan;
+            const price = annual ? p.annualMonthly : p.monthlyPrice;
+            const billedLabel = annual
+              ? `R$ ${p.annualPrice}/ano · cobrado anualmente`
+              : 'cobrado mensalmente';
+
+            return (
+              <View key={p.id} style={[styles.planCard, isCurrentPlan && { borderColor: p.color, borderWidth: 2 }]}>
+                {p.popular && !isCurrentPlan && (
+                  <LinearGradient
+                    colors={['#D97706', '#F59E0B']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={styles.popularBadge}
+                  >
+                    <Text style={styles.popularBadgeText}>MAIS COMPLETO</Text>
+                  </LinearGradient>
+                )}
+                {isCurrentPlan && (
+                  <View style={[styles.popularBadge, { backgroundColor: p.color }]}>
+                    <Text style={styles.popularBadgeText}>SEU PLANO ATUAL</Text>
+                  </View>
+                )}
+
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardPlanName, { color: p.color }]}>{p.name}</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.pricePrefix}>R$</Text>
+                    <Text style={styles.priceValue}>
+                      {price.toFixed(2).replace('.', ',')}
+                    </Text>
+                    <Text style={styles.priceSuffix}>/mês</Text>
+                  </View>
+                  <Text style={styles.billedLabel}>{billedLabel}</Text>
+                </View>
+
+                <View style={styles.cardDivider} />
+
+                <View style={styles.featuresList}>
+                  {p.features.map((f, i) => (
+                    <View key={i} style={styles.featureRow}>
+                      <View style={[
+                        styles.featureCheckWrap,
+                        f.included ? { backgroundColor: '#DCFCE7' } : { backgroundColor: '#F1F5F9' },
+                      ]}>
+                        {f.included
+                          ? <Image source={ICON_CHECK} style={styles.checkIcon} resizeMode="contain" />
+                          : <Text style={styles.featureX}>—</Text>}
+                      </View>
+                      <Text style={[styles.featureText, !f.included && styles.featureTextMuted]}>
+                        {f.label}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {!isCurrentPlan && (
+                  <View style={styles.ctaWrap}>
+                    <TouchableOpacity
+                      onPress={() => handleSubscribe(p.id)}
+                      disabled={!!loading}
+                      activeOpacity={0.82}
+                    >
+                      <LinearGradient
+                        colors={p.gradientColors}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                        style={styles.ctaBtn}
+                      >
+                        {loading === p.id
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <Text style={styles.ctaBtnText}>Assinar agora</Text>}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </>
+      )}
+
+      {/* Rodapé informativo */}
+      <View style={styles.footerCard}>
+        <Text style={styles.footerText}>
+          Pagamento seguro via Stripe · Cancele quando quiser
         </Text>
-        <Text style={styles.comingSoonEmail}>Dúvidas: suporte@petcareplus.app</Text>
+        <Text style={styles.footerEmail}>Dúvidas: suporte@petcareplus.app</Text>
       </View>
 
     </ScrollView>
@@ -293,12 +496,19 @@ const styles = StyleSheet.create({
   ctaBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   ctaBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
 
-  comingSoonCard: {
-    marginHorizontal: 20, marginTop: 20, backgroundColor: '#fff', borderRadius: 20, padding: 22,
-    alignItems: 'center', borderWidth: 1, borderColor: '#E0F2FE',
-    shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  footerCard: {
+    marginHorizontal: 20, marginTop: 20, marginBottom: 10,
+    alignItems: 'center', gap: 6,
   },
-  comingSoonTitle: { fontSize: 16, fontWeight: '800', color: '#1E293B', marginBottom: 8 },
-  comingSoonText: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: 12 },
-  comingSoonEmail: { fontSize: 13, color: '#0EA5E9', fontWeight: '700' },
+  footerText:  { fontSize: 12, color: '#94A3B8', textAlign: 'center' },
+  footerEmail: { fontSize: 12, color: '#0EA5E9', fontWeight: '700' },
+
+  clinicSectionHeader: {
+    marginHorizontal: 20, marginTop: 28, marginBottom: 4, alignItems: 'flex-start', gap: 8,
+  },
+  clinicSectionBadge: {
+    borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7,
+  },
+  clinicSectionBadgeText: { fontSize: 12, fontWeight: '900', color: '#fff', letterSpacing: 1.2 },
+  clinicSectionSub: { fontSize: 13, color: '#64748B', paddingHorizontal: 4 },
 });

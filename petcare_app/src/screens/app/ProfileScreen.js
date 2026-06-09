@@ -48,7 +48,7 @@ function Row({ icon, label, value, onPress, danger }) {
 }
 
 export default function ProfileScreen({ navigation }) {
-  const { user, signOut, plan, isPremium, isVet } = useAuth();
+  const { user, signOut, plan, isPremium, isVet, vetProfile } = useAuth();
   const { maxViewers } = usePlan();
   const [profile, setProfile] = useState({ full_name: '', phone: '', address: '', avatar_url: '', is_admin: false });
   const [vetData, setVetData] = useState({ specialty: '', clinic_name: '', clinic_address: '' });
@@ -74,6 +74,7 @@ export default function ProfileScreen({ navigation }) {
   const [vetSettings, setVetSettings] = useState({ chat_enabled: false, signature_url: '', clinic_logo_url: '' });
   const [uploadingSignature, setUploadingSignature] = useState(false);
   const [uploadingLogo,      setUploadingLogo]      = useState(false);
+  const [clinicName, setClinicName] = useState('');
 
   const fetchData = async () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -127,6 +128,11 @@ export default function ProfileScreen({ navigation }) {
       const [, petsRes, vaccinesRes, expensesRes] = results;
       const total = (expensesRes.data ?? []).reduce((s, e) => s + Number(e.amount), 0);
       setStats({ pets: petsRes.count ?? 0, vaccines: vaccinesRes.count ?? 0, totalExpenses: total });
+    }
+
+    if (isVet && vetProfile?.clinic_id) {
+      const { data: cData } = await supabase.from('clinics').select('name').eq('id', vetProfile.clinic_id).single();
+      setClinicName(cData?.name ?? '');
     }
 
     setLoading(false);
@@ -560,6 +566,40 @@ export default function ProfileScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
+          </Section>
+        )}
+
+        {isVet && (
+          <Section title="Minha Clínica">
+            <TouchableOpacity
+              style={styles.planCard}
+              onPress={() => vetProfile?.clinic_id
+                ? navigation.navigate('ClinicDashboard', { clinicId: vetProfile.clinic_id })
+                : navigation.navigate('ClinicSetup')
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.planBadge}>
+                <View style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  backgroundColor: vetProfile?.clinic_id ? '#EDE9FE' : '#F1F5F9',
+                  justifyContent: 'center', alignItems: 'center',
+                }}>
+                  <Text style={{ fontSize: 24 }}>🏥</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: vetProfile?.clinic_id ? '#6D28D9' : '#475569' }}>
+                    {vetProfile?.clinic_id ? (clinicName || 'Minha Clínica') : 'Criar Clínica'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>
+                    {vetProfile?.clinic_id
+                      ? 'Gerenciar equipe, estoque e vendas'
+                      : 'Configure sua clínica no PetCare+'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 20, color: '#BAE6FD' }}>›</Text>
+            </TouchableOpacity>
           </Section>
         )}
 

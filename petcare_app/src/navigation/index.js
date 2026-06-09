@@ -49,6 +49,15 @@ import TutorChatScreen            from '../screens/app/TutorChatScreen';
 import TutorBookVetScreen         from '../screens/app/TutorBookVetScreen';
 import VetAdminScreen             from '../screens/app/VetAdminScreen';
 
+// Clínica
+import ClinicSetupScreen          from '../screens/clinic/ClinicSetupScreen';
+import ClinicDashboardScreen      from '../screens/clinic/ClinicDashboardScreen';
+import ClinicTeamScreen           from '../screens/clinic/ClinicTeamScreen';
+import ClinicProductsScreen       from '../screens/clinic/ClinicProductsScreen';
+import ClinicSaleScreen           from '../screens/clinic/ClinicSaleScreen';
+import ClinicOrderScreen          from '../screens/clinic/ClinicOrderScreen';
+import ClinicReceptionScreen      from '../screens/clinic/ClinicReceptionScreen';
+
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
@@ -281,6 +290,15 @@ function VetStack() {
       <Stack.Screen name="VetUnlinkedPatient"      component={VetUnlinkedPatientScreen}     options={{ title: 'Paciente da Clínica' }} />
       <Stack.Screen name="VetChat"                 component={VetChatScreen}                options={{ title: 'Chat' }} />
       <Stack.Screen name="VetChats"                component={VetChatsScreen}               options={{ title: 'Conversas' }} />
+
+      {/* Clínica */}
+      <Stack.Screen name="ClinicSetup"     component={ClinicSetupScreen}     options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicDashboard" component={ClinicDashboardScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicTeam"      component={ClinicTeamScreen}      options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicProducts"  component={ClinicProductsScreen}  options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicSale"      component={ClinicSaleScreen}      options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicOrder"     component={ClinicOrderScreen}     options={{ headerShown: false }} />
+      <Stack.Screen name="ClinicReception" component={ClinicReceptionScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

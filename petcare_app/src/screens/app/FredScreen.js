@@ -8,7 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
-const FRED_URL = 'https://wqabzvataiellbttoojn.supabase.co/functions/v1/fred-chat';
+const FRED_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/fred-chat`;
 const FRED_IMG = require('../../../assets/icon_fred.png');
 
 const QUICK_QUESTIONS_TUTOR = [
