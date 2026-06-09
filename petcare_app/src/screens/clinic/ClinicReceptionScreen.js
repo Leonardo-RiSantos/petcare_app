@@ -17,8 +17,8 @@ const STATUS_COLORS = {
 };
 
 export default function ClinicReceptionScreen({ navigation, route }) {
-  const { clinicId } = route.params || {};
-  const { user } = useAuth();
+  const { user, vetProfile } = useAuth();
+  const clinicId = route?.params?.clinicId || vetProfile?.clinic_id;
 
   const [orders,   setOrders]   = useState([]);
   const [loading,  setLoading]  = useState(true);

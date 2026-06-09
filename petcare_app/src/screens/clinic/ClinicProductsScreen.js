@@ -17,7 +17,7 @@ const EMPTY_FORM = {
 };
 
 export default function ClinicProductsScreen({ navigation, route }) {
-  const { clinicId, canEdit } = route.params;
+  const { clinicId, canEdit = true } = route.params || {};
 
   const [products, setProducts] = useState([]);
   const [loading,  setLoading]  = useState(true);

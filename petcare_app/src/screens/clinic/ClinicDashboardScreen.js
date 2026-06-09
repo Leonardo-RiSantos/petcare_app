@@ -110,9 +110,11 @@ export default function ClinicDashboardScreen({ navigation, route }) {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient colors={['#7C3AED', '#A78BFA']} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4, marginRight: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 22 }}>←</Text>
-        </TouchableOpacity>
+        {navigation.canGoBack() && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4, marginRight: 12 }}>
+            <Text style={{ color: '#fff', fontSize: 22 }}>←</Text>
+          </TouchableOpacity>
+        )}
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>{clinic?.name || 'Clínica'}</Text>
           <Text style={styles.headerSub}>

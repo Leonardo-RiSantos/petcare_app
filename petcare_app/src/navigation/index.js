@@ -58,6 +58,7 @@ import ClinicSaleScreen           from '../screens/clinic/ClinicSaleScreen';
 import ClinicOrderScreen          from '../screens/clinic/ClinicOrderScreen';
 import ClinicReceptionScreen      from '../screens/clinic/ClinicReceptionScreen';
 import ClinicServicesScreen       from '../screens/clinic/ClinicServicesScreen';
+import ClinicVetListScreen        from '../screens/clinic/ClinicVetListScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -86,9 +87,12 @@ const TAB_ROUTE_CONFIG = {
   ExpensesTab:     { icon: TAB_ICONS.expenses, label: 'Gastos'     },
   MapTab:          { icon: TAB_ICONS.map,      label: 'Mapa'       },
   ProfileTab:      { icon: TAB_ICONS.profile,  label: 'Perfil'     },
-  VetHomeTab:      { icon: TAB_ICONS.home,     label: 'Início'     },
-  VetCalendarTab:  { icon: TAB_ICONS.late,     label: 'Agenda'     },
-  VetFinancialTab: { icon: TAB_ICONS.expenses, label: 'Financeiro' },
+  VetHomeTab:          { icon: TAB_ICONS.medical,  label: 'Pacientes'    },
+  VetCalendarTab:      { icon: TAB_ICONS.late,     label: 'Agenda'       },
+  VetFinancialTab:     { icon: TAB_ICONS.expenses, label: 'Financeiro'   },
+  ClinicHomeTab:       { icon: TAB_ICONS.home,     label: 'Dashboard'    },
+  ClinicVetsTab:       { icon: TAB_ICONS.medical,  label: 'Veterinários' },
+  ClinicReceptionTab:  { icon: TAB_ICONS.expenses, label: 'Recepção'     },
 };
 
 function CustomTabBar({ state, descriptors, navigation }) {
@@ -227,26 +231,8 @@ function TutorStack() {
   );
 }
 
-// ─── VETERINÁRIO ──────────────────────────────────────────────
-
-// Home: ClinicDashboard se tem clínica, VetDashboard se solo
-function VetHomeWrapper(props) {
-  const { vetProfile } = useAuth();
-  if (vetProfile?.clinic_id) {
-    return (
-      <ClinicDashboardScreen
-        {...props}
-        route={{ ...(props.route || {}), params: { clinicId: vetProfile.clinic_id } }}
-      />
-    );
-  }
-  return <VetDashboardScreen {...props} />;
-}
-
+// ─── VETERINÁRIO SOLO ─────────────────────────────────────────
 function VetTabs() {
-  const { vetProfile } = useAuth();
-  const hasClinic = !!vetProfile?.clinic_id;
-
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -259,14 +245,19 @@ function VetTabs() {
       >
         <Tab.Screen
           name="VetHomeTab"
-          component={VetHomeWrapper}
+          component={VetDashboardScreen}
           options={{
-            headerShown: false,
+            headerTitle: () => (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Image source={LOGO} style={{ width: 30, height: 30 }} resizeMode="contain" />
+                <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E293B' }}>PetCare+</Text>
+              </View>
+            ),
           }}
         />
-        <Tab.Screen name="VetCalendarTab"  component={VetCalendarScreen}  options={{ headerTitle: 'Agenda'      }} />
-        <Tab.Screen name="VetFinancialTab" component={VetFinancialScreen} options={{ headerTitle: 'Financeiro'  }} />
-        <Tab.Screen name="ProfileTab"      component={ProfileScreen}      options={{ headerTitle: 'Perfil'      }} />
+        <Tab.Screen name="VetCalendarTab"  component={VetCalendarScreen}  options={{ headerTitle: 'Agenda'     }} />
+        <Tab.Screen name="VetFinancialTab" component={VetFinancialScreen} options={{ headerTitle: 'Financeiro' }} />
+        <Tab.Screen name="ProfileTab"      component={ProfileScreen}      options={{ headerTitle: 'Perfil'     }} />
       </Tab.Navigator>
       <FredFloat />
     </View>
@@ -280,10 +271,7 @@ function VetStack() {
         ...NAV_OPTS,
         ...(Platform.OS === 'web' && {
           headerLeft: ({ canGoBack }) => canGoBack ? (
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={{ paddingHorizontal: 6, paddingVertical: 4, marginRight: 4 }}
-            >
+            <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingHorizontal: 6, paddingVertical: 4, marginRight: 4 }}>
               <Text style={{ fontSize: 22, color: '#0EA5E9', fontWeight: '300' }}>←</Text>
             </TouchableOpacity>
           ) : undefined,
@@ -304,8 +292,6 @@ function VetStack() {
       <Stack.Screen name="VetUnlinkedPatient"      component={VetUnlinkedPatientScreen}     options={{ title: 'Paciente da Clínica' }} />
       <Stack.Screen name="VetChat"                 component={VetChatScreen}                options={{ title: 'Chat' }} />
       <Stack.Screen name="VetChats"                component={VetChatsScreen}               options={{ title: 'Conversas' }} />
-
-      {/* Clínica */}
       <Stack.Screen name="ClinicSetup"     component={ClinicSetupScreen}     options={{ headerShown: false }} />
       <Stack.Screen name="ClinicDashboard" component={ClinicDashboardScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ClinicTeam"      component={ClinicTeamScreen}      options={{ headerShown: false }} />
@@ -314,6 +300,90 @@ function VetStack() {
       <Stack.Screen name="ClinicOrder"     component={ClinicOrderScreen}     options={{ headerShown: false }} />
       <Stack.Screen name="ClinicReception" component={ClinicReceptionScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ClinicServices"  component={ClinicServicesScreen}  options={{ headerShown: false }} />
+      <Stack.Screen name="Plan"            component={PlanScreen}            options={{ title: 'Meu Plano' }} />
+    </Stack.Navigator>
+  );
+}
+
+// ─── CLÍNICA ──────────────────────────────────────────────────
+function ClinicTabBar({ state, descriptors, navigation }) {
+  return (
+    <View style={tabStyles.bar}>
+      {state.routes.map((route, index) => {
+        const isFocused = state.index === index;
+        const { icon, label } = TAB_ROUTE_CONFIG[route.name] || { icon: TAB_ICONS.home, label: route.name };
+        const onPress = () => {
+          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
+        };
+        return (
+          <TouchableOpacity key={route.key} onPress={onPress} style={tabStyles.item} activeOpacity={0.75}>
+            {isFocused ? (
+              <LinearGradient
+                colors={['#7C3AED', '#A78BFA']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={tabStyles.pill}
+              >
+                <Image source={icon} style={tabStyles.pillIcon} resizeMode="contain" />
+                <Text style={tabStyles.pillLabel}>{label}</Text>
+              </LinearGradient>
+            ) : (
+              <View style={tabStyles.iconWrap}>
+                <Image source={icon} style={tabStyles.icon} resizeMode="contain" />
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function ClinicTabs() {
+  return (
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        tabBar={(props) => <ClinicTabBar {...props} />}
+        screenOptions={{ headerShown: false }}
+      >
+        <Tab.Screen name="ClinicHomeTab"      component={ClinicDashboardScreen} />
+        <Tab.Screen name="ClinicVetsTab"      component={ClinicVetListScreen}   />
+        <Tab.Screen name="ClinicReceptionTab" component={ClinicReceptionScreen} />
+        <Tab.Screen name="ProfileTab"         component={ProfileScreen}         options={{ headerShown: false }} />
+      </Tab.Navigator>
+      <FredFloat />
+    </View>
+  );
+}
+
+function ClinicStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ClinicMain"   component={ClinicTabs} />
+      <Stack.Screen name="Fred"         component={FredScreen} />
+      <Stack.Screen name="ClinicSetup"            component={ClinicSetupScreen}           />
+      <Stack.Screen name="ClinicDashboard"        component={ClinicDashboardScreen}       />
+      <Stack.Screen name="ClinicTeam"             component={ClinicTeamScreen}            />
+      <Stack.Screen name="ClinicProducts"         component={ClinicProductsScreen}        />
+      <Stack.Screen name="ClinicSale"             component={ClinicSaleScreen}            />
+      <Stack.Screen name="ClinicOrder"            component={ClinicOrderScreen}           />
+      <Stack.Screen name="ClinicReception"        component={ClinicReceptionScreen}       />
+      <Stack.Screen name="ClinicServices"         component={ClinicServicesScreen}        />
+      {/* Telas de vet acessíveis dentro do contexto clínica */}
+      <Stack.Screen name="VetDashboard"           component={VetDashboardScreen}          options={{ headerShown: false }} />
+      <Stack.Screen name="VetPatient"             component={VetPatientScreen}            options={{ headerShown: true, title: 'Paciente' }} />
+      <Stack.Screen name="VetAddPatient"          component={VetAddPatientScreen}         options={{ headerShown: true, title: 'Adicionar Paciente' }} />
+      <Stack.Screen name="AddMedicalRecord"       component={AddMedicalRecordScreen}      options={{ headerShown: true, title: 'Novo Registro' }} />
+      <Stack.Screen name="VetConsultation"        component={VetConsultationScreen}       options={{ headerShown: true, title: 'Prontuário' }} />
+      <Stack.Screen name="VetQuickDoc"            component={VetQuickDocScreen}           options={{ headerShown: true, title: 'Receita / Atestado' }} />
+      <Stack.Screen name="VetAddAppointment"      component={VetAddAppointmentScreen}     options={{ headerShown: true, title: 'Agendar Consulta' }} />
+      <Stack.Screen name="VetAddUnlinkedPatient"  component={VetAddUnlinkedPatientScreen} options={{ headerShown: true, title: 'Novo Paciente' }} />
+      <Stack.Screen name="VetUnlinkedPatient"     component={VetUnlinkedPatientScreen}    options={{ headerShown: true, title: 'Paciente' }} />
+      <Stack.Screen name="VetCalendar"            component={VetCalendarScreen}           options={{ headerShown: false }} />
+      <Stack.Screen name="VetFinancial"           component={VetFinancialScreen}          options={{ headerShown: true, title: 'Financeiro' }} />
+      <Stack.Screen name="VetChat"                component={VetChatScreen}               options={{ headerShown: true, title: 'Chat' }} />
+      <Stack.Screen name="VetChats"               component={VetChatsScreen}              options={{ headerShown: true, title: 'Conversas' }} />
+      <Stack.Screen name="Plan"                   component={PlanScreen}                  options={{ headerShown: true, title: 'Meu Plano' }} />
     </Stack.Navigator>
   );
 }
@@ -330,7 +400,7 @@ function AuthStack() {
 
 // ─── ROOT ─────────────────────────────────────────────────────
 export default function Navigation() {
-  const { user, isVet, vetStatus, loading } = useAuth();
+  const { user, isVet, vetProfile, vetStatus, loading } = useAuth();
 
   if (loading) {
     return (
@@ -348,7 +418,6 @@ export default function Navigation() {
 
   if (!user) return <NavigationContainer><AuthStack /></NavigationContainer>;
 
-  // Vet pendente → tela de análise (sem navegação)
   if (isVet && vetStatus !== 'approved') {
     return (
       <NavigationContainer>
@@ -361,7 +430,11 @@ export default function Navigation() {
 
   return (
     <NavigationContainer>
-      {isVet ? <VetStack /> : <TutorStack />}
+      {!isVet
+        ? <TutorStack />
+        : vetProfile?.clinic_id
+          ? <ClinicStack />
+          : <VetStack />}
     </NavigationContainer>
   );
 }
