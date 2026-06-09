@@ -9,17 +9,41 @@ import { supabase } from '../../lib/supabase';
 const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS',
                 'MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
-export default function ClinicSetupScreen({ navigation, route }) {
-  const isEdit = route?.params?.isEdit || false;
-  const existing = route?.params?.clinic || null;
+const REGIMES = [
+  { value: 1, label: 'Simples Nacional' },
+  { value: 2, label: 'SN – Excesso sublimite' },
+  { value: 3, label: 'Lucro Presumido / Real' },
+];
 
+export default function ClinicSetupScreen({ navigation, route }) {
+  const isEdit   = route?.params?.isEdit  || false;
+  const existing = route?.params?.clinic  || null;
+
+  // Dados gerais
   const [name,    setName]    = useState(existing?.name    || '');
-  const [cnpj,    setCnpj]    = useState(existing?.cnpj    || '');
+  const [cnpj,    setCnpj]    = useState(existing?.cnpj ? formatCnpjInit(existing.cnpj) : '');
   const [phone,   setPhone]   = useState(existing?.phone   || '');
   const [address, setAddress] = useState(existing?.address || '');
   const [city,    setCity]    = useState(existing?.city    || '');
   const [state,   setState]   = useState(existing?.state   || 'SP');
-  const [saving,  setSaving]  = useState(false);
+
+  // Dados fiscais / NF-e
+  const [razaoSocial, setRazaoSocial] = useState(existing?.razao_social        || '');
+  const [ie,          setIe]          = useState(existing?.inscricao_estadual  || '');
+  const [im,          setIm]          = useState(existing?.inscricao_municipal || '');
+  const [regime,      setRegime]      = useState(existing?.regime_tributario   ?? 1);
+  const [emailNfe,    setEmailNfe]    = useState(existing?.email_nfe           || '');
+
+  const [saving, setSaving] = useState(false);
+
+  function formatCnpjInit(v) {
+    const n = String(v).replace(/\D/g, '').slice(0, 14).padStart(0, '');
+    return n
+      .replace(/^(\d{2})(\d)/, '$1.$2')
+      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1/$2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  }
 
   const formatCnpj = (v) => {
     const n = v.replace(/\D/g, '').slice(0, 14);
@@ -36,6 +60,14 @@ export default function ClinicSetupScreen({ navigation, route }) {
     return n.replace(/^(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
   };
 
+  const nfePayload = () => ({
+    razao_social:        razaoSocial.trim() || null,
+    inscricao_estadual:  ie.trim()          || null,
+    inscricao_municipal: im.trim()          || null,
+    regime_tributario:   regime,
+    email_nfe:           emailNfe.trim()    || null,
+  });
+
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Campo obrigatório', 'Informe o nome da clínica.'); return; }
     setSaving(true);
@@ -43,23 +75,39 @@ export default function ClinicSetupScreen({ navigation, route }) {
       if (isEdit && existing?.id) {
         const { error } = await supabase
           .from('clinics')
-          .update({ name: name.trim(), cnpj: cnpj.replace(/\D/g,'') || null, phone, address, city, state })
+          .update({
+            name:    name.trim(),
+            cnpj:    cnpj.replace(/\D/g, '') || null,
+            phone:   phone    || null,
+            address: address  || null,
+            city:    city     || null,
+            state:   state    || null,
+            ...nfePayload(),
+          })
           .eq('id', existing.id);
         if (error) throw error;
         Alert.alert('Salvo!', 'Dados da clínica atualizados.');
         navigation.goBack();
       } else {
-        const { data, error } = await supabase.rpc('create_clinic', {
+        // Cria clínica (owner + clinic_members via RPC)
+        const { data: clinicId, error } = await supabase.rpc('create_clinic', {
           p_name:    name.trim(),
-          p_cnpj:    cnpj.replace(/\D/g,'') || null,
-          p_phone:   phone || null,
-          p_address: address || null,
-          p_city:    city || null,
-          p_state:   state || null,
+          p_cnpj:    cnpj.replace(/\D/g, '') || null,
+          p_phone:   phone    || null,
+          p_address: address  || null,
+          p_city:    city     || null,
+          p_state:   state    || null,
         });
         if (error) throw error;
+
+        // Salva dados fiscais separadamente (não estão no RPC)
+        const nfe = nfePayload();
+        if (Object.values(nfe).some(v => v !== null)) {
+          await supabase.from('clinics').update(nfe).eq('id', clinicId);
+        }
+
         Alert.alert('Clínica criada!', `${name} está pronta. Agora você pode convidar sua equipe.`, [
-          { text: 'OK', onPress: () => navigation.replace('ClinicDashboard', { clinicId: data }) },
+          { text: 'OK', onPress: () => navigation.replace('ClinicDashboard', { clinicId }) },
         ]);
       }
     } catch (err) {
@@ -86,10 +134,11 @@ export default function ClinicSetupScreen({ navigation, route }) {
 
         <View style={styles.form}>
 
+          {/* ── Dados gerais ── */}
           <Text style={styles.sectionTitle}>Dados da Clínica</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Nome da clínica *</Text>
+            <Text style={styles.label}>Nome fantasia *</Text>
             <TextInput
               style={styles.input}
               value={name}
@@ -123,6 +172,7 @@ export default function ClinicSetupScreen({ navigation, route }) {
             />
           </View>
 
+          {/* ── Endereço ── */}
           <Text style={styles.sectionTitle}>Endereço</Text>
 
           <View style={styles.field}>
@@ -168,6 +218,78 @@ export default function ClinicSetupScreen({ navigation, route }) {
             </View>
           </View>
 
+          {/* ── Dados Fiscais / NF-e ── */}
+          <Text style={styles.sectionTitle}>Dados Fiscais / NF-e</Text>
+          <Text style={styles.sectionDesc}>
+            Preenchidos para emissão futura de Nota Fiscal Eletrônica. Não obrigatórios.
+          </Text>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Razão Social</Text>
+            <TextInput
+              style={styles.input}
+              value={razaoSocial}
+              onChangeText={setRazaoSocial}
+              placeholder="Nome jurídico da empresa"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+            />
+          </View>
+
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Inscrição Estadual</Text>
+              <TextInput
+                style={styles.input}
+                value={ie}
+                onChangeText={setIe}
+                placeholder="IE ou ISENTO"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+              />
+            </View>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>Inscrição Municipal</Text>
+              <TextInput
+                style={styles.input}
+                value={im}
+                onChangeText={setIm}
+                placeholder="IM (se houver)"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Regime Tributário</Text>
+            <View style={styles.regimeRow}>
+              {REGIMES.map(r => (
+                <TouchableOpacity
+                  key={r.value}
+                  onPress={() => setRegime(r.value)}
+                  style={[styles.regimeChip, regime === r.value && styles.regimeChipActive]}
+                >
+                  <Text style={[styles.regimeChipText, regime === r.value && styles.regimeChipTextActive]}>
+                    {r.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>E-mail para NF-e</Text>
+            <TextInput
+              style={styles.input}
+              value={emailNfe}
+              onChangeText={setEmailNfe}
+              placeholder="nfe@clinica.com.br"
+              placeholderTextColor="#94A3B8"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
           <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.85}>
             <LinearGradient colors={['#7C3AED', '#A78BFA']} style={styles.saveBtn}>
               {saving
@@ -199,7 +321,10 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontSize: 13, fontWeight: '800', color: '#7C3AED',
-    letterSpacing: 0.8, marginTop: 16, marginBottom: 8,
+    letterSpacing: 0.8, marginTop: 16, marginBottom: 4,
+  },
+  sectionDesc: {
+    fontSize: 11, color: '#94A3B8', marginBottom: 10,
   },
 
   field:  { marginBottom: 14 },
@@ -220,6 +345,15 @@ const styles = StyleSheet.create({
   stateChipActive:     { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
   stateChipText:       { fontSize: 11, fontWeight: '700', color: '#7C3AED' },
   stateChipTextActive: { color: '#fff' },
+
+  regimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  regimeChip: {
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, backgroundColor: '#EDE9FE', borderWidth: 1.5, borderColor: '#DDD6FE',
+  },
+  regimeChipActive:     { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  regimeChipText:       { fontSize: 12, fontWeight: '700', color: '#7C3AED' },
+  regimeChipTextActive: { color: '#fff' },
 
   saveBtn:     { borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
   saveBtnText: { fontSize: 15, fontWeight: '900', color: '#fff' },
